@@ -21,7 +21,10 @@ final apiClientProvider = Provider<ApiClient>((ref) {
 
 final dioProvider = Provider<Dio>((ref) => ref.watch(apiClientProvider).dio);
 
-final ttsServiceProvider = Provider<TtsService>((ref) => TtsService());
+final ttsServiceProvider = Provider<TtsService>((ref) => TtsService(
+      baseUrl: kApiBaseUrl,
+      tokens: ref.watch(tokenStorageProvider),
+    ));
 
 final reminderServiceProvider =
     Provider<ReminderService>((ref) => ReminderService());

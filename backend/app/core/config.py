@@ -18,6 +18,9 @@ class Settings(BaseSettings):
 
     cors_origins: str = ""
 
+    # Directory for generated TTS mp3 files (mounted volume in docker).
+    tts_cache_dir: str = "uploads/tts"
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

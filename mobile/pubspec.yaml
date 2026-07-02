@@ -17,8 +17,8 @@ dependencies:
   dio: ^5.4.3
   # Secure token storage (Keychain/Keystore — PLAN.md §3.4)
   flutter_secure_storage: ^9.2.2
-  # TTS (spec §11.6)
-  flutter_tts: ^4.0.2
+  # Phát audio phát âm từ server (mp3 sinh sẵn bằng edge-tts — thay flutter_tts)
+  audioplayers: ^6.0.0
   # CJK font preload — fixes tofu squares on Flutter web (canvaskit lazy fonts)
   google_fonts: ^6.2.1
   # Daily study reminder (local notification, no server needed)

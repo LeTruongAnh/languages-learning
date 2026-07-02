@@ -12,6 +12,7 @@ app/api/routes/imports.py
 app/api/routes/languages.py
 app/api/routes/study_items.py
 app/api/routes/study_sessions.py
+app/api/routes/tts.py
 app/api/routes/user_settings.py
 app/core/__init__.py
 app/core/config.py
@@ -49,12 +50,16 @@ app/services/language_service.py
 app/services/review_service.py
 app/services/study_item_service.py
 app/services/study_session_service.py
+app/services/tts_service.py
 app/services/user_service.py
 tests/test_auth_flow.py
 tests/test_import_export.py
 tests/test_languages.py
 tests/test_security.py
+tests/test_srs_v2.py
 tests/test_study_flow.py
+tests/test_tts.py
+tests/test_weekly_and_filters.py
 vocab_api.egg-info/PKG-INFO
 vocab_api.egg-info/SOURCES.txt
 vocab_api.egg-info/dependency_links.txt

@@ -37,3 +37,29 @@ async def get_current_user(
     if user is None:
         raise TokenError("User not found or inactive")
     return user
+
+
+async def get_current_user_or_query_token(
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
+    token: str | None = None,
+    db: AsyncSession = Depends(get_db),
+) -> User:
+    """Like get_current_user, but also accepts ?token=<access_token>.
+
+    Needed for audio playback: HTML <audio> elements (Flutter web) cannot
+    send an Authorization header. The token is the normal short-lived (15m)
+    access token; acceptable trade-off for this personal app.
+    """
+    raw = credentials.credentials if credentials else token
+    if not raw:
+        raise TokenError("Missing bearer token")
+    try:
+        payload = decode_access_token(raw)
+        user_id = uuid.UUID(payload["sub"])
+    except (pyjwt.PyJWTError, KeyError, ValueError):
+        raise TokenError()
+
+    user = await db.scalar(select(User).where(User.id == user_id, User.is_active.is_(True)))
+    if user is None:
+        raise TokenError("User not found or inactive")
+    return user

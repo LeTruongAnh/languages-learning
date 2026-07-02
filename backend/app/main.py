@@ -5,6 +5,7 @@ from slowapi import _rate_limit_exceeded_handler
 
 from app.api.routes import (
     auth,
+    tts,
     dashboard,
     hard_items,
     imports,
@@ -57,6 +58,7 @@ app.include_router(hard_items.router, prefix=API_PREFIX)
 app.include_router(dashboard.router, prefix=API_PREFIX)
 app.include_router(imports.router, prefix=API_PREFIX)
 app.include_router(user_settings.router, prefix=API_PREFIX)
+app.include_router(tts.router, prefix=API_PREFIX)
 
 
 @app.get("/api/health")

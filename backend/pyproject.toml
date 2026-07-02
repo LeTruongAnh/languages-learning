@@ -17,6 +17,7 @@ dependencies = [
     "pyjwt>=2.8",
     "slowapi>=0.1.9",
     "python-multipart>=0.0.9",
+    "edge-tts>=6.1",
 ]
 
 [project.optional-dependencies]

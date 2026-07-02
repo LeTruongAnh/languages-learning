@@ -71,6 +71,15 @@ Cách nhanh nhất — reset sạch DB, tạo schema mới nhất và import 9.5
 
 Script tự đọc cổng/mật khẩu từ `.env`, tự chờ PostgreSQL, tự chạy API tạm nếu server chưa bật. Dùng lại bất cứ khi nào muốn làm sạch dữ liệu (sau khi đổi schema, seed hỏng...).
 
+**Sinh audio phát âm (một lần, sau seed):** app phát mp3 sinh sẵn bằng giọng neural (edge-tts) thay vì TTS của thiết bị. Chạy:
+
+```powershell
+pip install -e ".[dev]"          # cài edge-tts (dependency mới)
+python scripts\generate_tts.py   # ~30-60 phút cho 9.5k items, chạy lại được nếu đứt
+```
+
+Không bắt buộc — từ nào chưa có audio sẽ được sinh tự động lần đầu bấm loa (trễ ~1 giây). Sinh sẵn để phát tức thì.
+
 Cách thủ công (chỉ tạo schema, không seed):
 
 ```powershell

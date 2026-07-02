@@ -26,7 +26,7 @@ Base URL mặc định `http://10.0.2.2:8000/api` (Android emulator → localhos
 | Dio interceptor: tự gắn token, tự refresh khi 401 (single-flight), logout khi hết hạn | ✅ |
 | Home: language cards từ `/dashboard/languages` + streak, pull-to-refresh | ✅ |
 | Study flow: daily/extra/hard session, PASS/FAIL/SKIP, resume giữa chừng, retry khi mất mạng | ✅ |
-| TTS: auto-speak theo settings, voice theo `tts_lang` từng ngôn ngữ | ✅ |
+| Phát âm: mp3 server (edge-tts neural) — đồng nhất mọi thiết bị, loa hoạt động cả hard session | ✅ |
 | Completion view: thống kê Pass/Fail/Skip cuối phiên | ✅ |
 | Dashboard: stat cards + breakdown ngôn ngữ | ✅ |
 | Settings: TTS toggles + speech rate (PATCH API), logout, múi giờ | ✅ |
