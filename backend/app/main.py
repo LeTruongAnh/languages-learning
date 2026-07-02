@@ -28,8 +28,18 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# CORS only needed for the web companion; mobile apps don't use CORS.
-if settings.cors_origin_list:
+# CORS only needed for browser clients (web companion / Flutter web).
+# DEBUG mode: allow any localhost port so `flutter run -d chrome` just works.
+# Production: strict whitelist from CORS_ORIGINS.
+if settings.debug:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origin_regex=r"http://(localhost|127\.0\.0\.1)(:\d+)?",
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+elif settings.cors_origin_list:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,

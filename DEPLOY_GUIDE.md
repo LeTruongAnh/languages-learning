@@ -139,6 +139,7 @@ flutter pub get
 | Android emulator | `flutter run` (mặc định `http://10.0.2.2:8000/api` → localhost máy dev) |
 | iOS simulator | `flutter run --dart-define=API_BASE_URL=http://localhost:8000/api` |
 | Điện thoại thật (cùng Wi-Fi) | `flutter run --dart-define=API_BASE_URL=http://<IP-máy-dev>:8000/api` |
+| Chrome (Flutter web) | `flutter create . --platforms=web` (1 lần) rồi `flutter run -d chrome --web-port 5555 --dart-define=API_BASE_URL=http://localhost:8000/api` — backend cần `CORS_ORIGINS=http://localhost:5555` trong `.env` |
 
 Lấy IP máy dev: `ipconfig` → IPv4 Address. Backend phải chạy với `--host 0.0.0.0` và Windows Firewall cho phép cổng 8000.
 

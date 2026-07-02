@@ -1,12 +1,15 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import func
+from sqlalchemy import DateTime, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
 class Base(DeclarativeBase):
-    pass
+    # Every datetime column is timestamptz (spec 7: timestamptz everywhere).
+    # Required for PostgreSQL+asyncpg: the app writes timezone-aware datetimes,
+    # which asyncpg rejects on naive TIMESTAMP columns.
+    type_annotation_map = {datetime: DateTime(timezone=True)}
 
 
 class UUIDPKMixin:
