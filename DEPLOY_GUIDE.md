@@ -61,7 +61,17 @@ Sinh JWT secret:
 python -c "import secrets; print(secrets.token_urlsafe(64))"
 ```
 
-### 1.6 Tạo schema database (lần đầu)
+### 1.6 Tạo schema + seed dữ liệu (một lệnh)
+
+Cách nhanh nhất — reset sạch DB, tạo schema mới nhất và import 9.511 từ/câu mẫu:
+
+```powershell
+.\scripts\reset_and_seed.ps1
+```
+
+Script tự đọc cổng/mật khẩu từ `.env`, tự chờ PostgreSQL, tự chạy API tạm nếu server chưa bật. Dùng lại bất cứ khi nào muốn làm sạch dữ liệu (sau khi đổi schema, seed hỏng...).
+
+Cách thủ công (chỉ tạo schema, không seed):
 
 ```powershell
 alembic revision --autogenerate -m "initial schema"

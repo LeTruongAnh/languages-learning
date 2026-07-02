@@ -60,6 +60,10 @@ class LanguageSettingUpdate(CamelModel):
     item_ordering: str | None = None
     study_direction: str | None = Field(
         default=None, pattern="^(FRONT|REVERSE|LISTENING|MIXED)$")
+    weekly_review_day: str | None = Field(
+        default=None,
+        pattern="^(MONDAY|TUESDAY|WEDNESDAY|THURSDAY|FRIDAY|SATURDAY|SUNDAY)$")
+    weekly_review_limit: int | None = Field(default=None, ge=5, le=200)
 
     @model_validator(mode="after")
     def validate_ratios_and_intervals(self):
@@ -103,4 +107,6 @@ class LanguageSettingOut(CamelModel):
     sort_mode: str
     item_ordering: str
     study_direction: str
+    weekly_review_day: str
+    weekly_review_limit: int
     is_active: bool

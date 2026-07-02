@@ -64,7 +64,14 @@ def main() -> None:
         else:
             sys.exit(f"LOI tao ngon ngu {lang['code']}: {res.status_code} {res.text}")
 
-    # 4. Import CSVs
+    # 4. Import CSVs — skip if data already exists (re-run safety).
+    existing = client.get("/study-items", params={"pageSize": 1}).json()
+    if existing.get("total", 0) > 0 and os.environ.get("SEED_FORCE") != "1":
+        print(f"[4/4] Da co {existing['total']} items — bo qua import de tranh trung.")
+        print("      Muon import lai: reset DB (scripts/reset_and_seed.ps1)")
+        print(f"\nDang nhap app bang:\n  Email:    {EMAIL}\n  Mat khau: {PASSWORD}")
+        return
+
     for lang in LANGUAGES:
         path = SEED_DIR / lang["csv"]
         if not path.exists():

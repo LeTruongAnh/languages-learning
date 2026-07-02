@@ -199,7 +199,7 @@ Nguồn tham chiếu pattern: Anki (SRS thuần), Duolingo (gamification/habit),
 | 4 | **Chiều học đảo**: Việt→từ, nghe TTS→đoán từ | Anki, Pimsleur | Setting per language: direction mix. Card hiện nghĩa trước, giấu từ |
 | 5 | **Push notification nhắc học + bảo vệ streak** | Duolingo | Phase 5 đã có kế hoạch; local notification là đủ cho MVP |
 
-### Ưu tiên vừa
+### Ưu tiên vừa — ✅ 02/07/2026: đã thêm Settings nâng cao (bộ lọc, SRS knobs, sort priority) + Weekly review từ config sheet cũ
 | # | Cải tiến | Học từ | Ghi chú |
 |---|---|---|---|
 | 6 | Trắc nghiệm 4 đáp án xen kẽ flashcard | Duolingo, Memrise | Sinh 3 đáp án nhiễu từ items cùng topic/difficulty — không cần AI |

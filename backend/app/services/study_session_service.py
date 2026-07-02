@@ -83,10 +83,13 @@ async def _pick_bucket(
     if exclude_ids:
         q = q.where(StudyItem.id.not_in(exclude_ids))
 
-    if settings.sort_mode == "random":
-        q = q.order_by(func.random())
-    else:
+    if settings.sort_mode == "priority":
+        # Hardest first: most wrong answers, then most overdue.
+        q = q.order_by(StudyItem.wrong_count.desc(), StudyItem.next_review_date.asc())
+    elif settings.sort_mode == "oldest_first":
         q = q.order_by(StudyItem.created_at)
+    else:  # random (default)
+        q = q.order_by(func.random())
     rows = await db.scalars(q.limit(limit))
     return list(rows)
 
@@ -320,3 +323,105 @@ async def list_hard_items(db: AsyncSession, user_id: uuid.UUID) -> list[StudyIte
         .order_by(StudyItem.wrong_count.desc())
     )
     return list(rows)
+
+
+WEEKDAY_NAMES = [
+    "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY",
+]
+
+
+async def create_weekly(db: AsyncSession, user_id: uuid.UUID, language_id: uuid.UUID) -> StudySession:
+    """LANGUAGE_WEEKLY: re-drill items studied in the last 7 days, hardest
+    first (wrong_count desc), capped at weekly_review_limit. Idempotent per
+    day like the daily session."""
+    from datetime import timedelta
+
+    from app.models import ReviewLog
+
+    await get_language(db, user_id, language_id)
+    settings = await get_settings(db, user_id, language_id)
+    today = today_in_tz(await get_user_timezone(db, user_id))
+    await _expire_stale_sessions(db, user_id, today)
+
+    existing = await db.scalar(
+        select(StudySession).where(
+            StudySession.user_id == user_id,
+            StudySession.language_id == language_id,
+            StudySession.session_type == "LANGUAGE_WEEKLY",
+            StudySession.study_date == today,
+            StudySession.status == "ACTIVE",
+        )
+    )
+    if existing is not None:
+        return existing
+
+    since = today - timedelta(days=7)
+    reviewed_ids = select(ReviewLog.study_item_id).where(
+        ReviewLog.user_id == user_id,
+        ReviewLog.language_id == language_id,
+        ReviewLog.study_date >= since,
+        ReviewLog.study_item_id.is_not(None),
+    ).distinct()
+
+    q = (
+        select(StudyItem)
+        .where(
+            StudyItem.user_id == user_id,
+            StudyItem.language_id == language_id,
+            StudyItem.is_archived.is_(False),
+            StudyItem.id.in_(reviewed_ids),
+        )
+        .order_by(StudyItem.wrong_count.desc(), func.random())
+        .limit(settings.weekly_review_limit)
+    )
+    if settings.avoid_same_day_repeat:
+        q = q.where(or_(
+            StudyItem.last_date_review.is_(None), StudyItem.last_date_review != today
+        ))
+    items = list(await db.scalars(q))
+    if not items:
+        raise NotFoundError("Weekly review items")
+
+    session = StudySession(
+        user_id=user_id,
+        language_id=language_id,
+        session_type="LANGUAGE_WEEKLY",
+        study_date=today,
+        total_items=len(items),
+    )
+    db.add(session)
+    await db.flush()
+    for position, item in enumerate(items, start=1):
+        bucket = "VOCAB_REVIEW" if item.item_type == VOCAB else "SENTENCE_REVIEW"
+        db.add(StudySessionItem(
+            session_id=session.id,
+            study_item_id=item.id,
+            position=position,
+            planned_bucket=bucket,
+        ))
+    await db.commit()
+    await db.refresh(session)
+    return session
+
+
+async def get_facets(db: AsyncSession, user_id: uuid.UUID, language_id: uuid.UUID) -> dict:
+    """Distinct filter values from the user's items — powers the filter UI."""
+    await get_language(db, user_id, language_id)
+
+    async def distinct(column):
+        rows = await db.scalars(
+            select(column).where(
+                StudyItem.user_id == user_id,
+                StudyItem.language_id == language_id,
+                StudyItem.is_archived.is_(False),
+                column.is_not(None),
+            ).distinct().order_by(column)
+        )
+        return [r for r in rows if r]
+
+    return {
+        "difficulties": await distinct(StudyItem.difficulty),
+        "topics": await distinct(StudyItem.topic),
+        "frequencyLevels": await distinct(StudyItem.frequency_level),
+        "situations": await distinct(StudyItem.situation),
+    }

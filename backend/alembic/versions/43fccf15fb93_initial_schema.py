@@ -1,15 +1,15 @@
 """initial schema
 
-Revision ID: 4587acf57f46
+Revision ID: 43fccf15fb93
 Revises: 
-Create Date: 2026-07-02 10:51:22.629509
+Create Date: 2026-07-02 13:48:35.410656
 
 """
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
-revision = '4587acf57f46'
+revision = '43fccf15fb93'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -69,6 +69,8 @@ def upgrade() -> None:
     sa.Column('speech_rate', sa.Numeric(precision=3, scale=2), nullable=False),
     sa.Column('speech_volume', sa.Numeric(precision=3, scale=2), nullable=False),
     sa.Column('theme', sa.String(length=30), nullable=False),
+    sa.Column('reminder_enabled', sa.Boolean(), nullable=False),
+    sa.Column('reminder_hour', sa.Integer(), nullable=False),
     sa.Column('id', sa.Uuid(), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
@@ -116,6 +118,9 @@ def upgrade() -> None:
     sa.Column('avoid_same_day_repeat', sa.Boolean(), nullable=False),
     sa.Column('sort_mode', sa.String(length=30), nullable=False),
     sa.Column('item_ordering', sa.String(length=50), nullable=False),
+    sa.Column('weekly_review_day', sa.String(length=10), nullable=False),
+    sa.Column('weekly_review_limit', sa.Integer(), nullable=False),
+    sa.Column('study_direction', sa.String(length=20), nullable=False),
     sa.Column('is_active', sa.Boolean(), nullable=False),
     sa.Column('id', sa.Uuid(), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
@@ -149,6 +154,8 @@ def upgrade() -> None:
     sa.Column('wrong_count', sa.Integer(), nullable=False),
     sa.Column('last_result', sa.String(length=20), nullable=True),
     sa.Column('hard_level', sa.String(length=30), nullable=False),
+    sa.Column('ease', sa.Numeric(precision=4, scale=2), nullable=False),
+    sa.Column('interval_days', sa.Integer(), nullable=False),
     sa.Column('is_archived', sa.Boolean(), nullable=False),
     sa.Column('id', sa.Uuid(), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
@@ -199,11 +206,17 @@ def upgrade() -> None:
     sa.Column('new_hard_level', sa.String(length=30), nullable=True),
     sa.Column('old_next_review_date', sa.Date(), nullable=True),
     sa.Column('new_next_review_date', sa.Date(), nullable=True),
+    sa.Column('old_ease', sa.Numeric(precision=4, scale=2), nullable=True),
+    sa.Column('new_ease', sa.Numeric(precision=4, scale=2), nullable=True),
+    sa.Column('old_interval_days', sa.Integer(), nullable=True),
+    sa.Column('new_interval_days', sa.Integer(), nullable=True),
+    sa.Column('old_last_result', sa.String(length=20), nullable=True),
+    sa.Column('old_last_date_review', sa.Date(), nullable=True),
     sa.Column('self_note', sa.Text(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('study_date', sa.Date(), nullable=True),
     sa.Column('id', sa.Uuid(), nullable=False),
-    sa.CheckConstraint("result in ('PASS', 'FAIL', 'SKIP')", name='ck_review_result'),
+    sa.CheckConstraint("result in ('AGAIN', 'HARD', 'GOOD', 'EASY', 'SKIP', 'PASS', 'FAIL')", name='ck_review_result'),
     sa.ForeignKeyConstraint(['language_id'], ['languages.id'], ondelete='SET NULL'),
     sa.ForeignKeyConstraint(['session_id'], ['study_sessions.id'], ondelete='SET NULL'),
     sa.ForeignKeyConstraint(['study_item_id'], ['study_items.id'], ondelete='SET NULL'),

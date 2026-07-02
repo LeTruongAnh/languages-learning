@@ -37,6 +37,11 @@ class SettingsRepository {
     final res = await _dio.patch('/languages/$languageId/settings', data: patch);
     return LanguageSetting.fromJson(res.data as Map<String, dynamic>);
   }
+
+  Future<LanguageFacets> loadFacets(String languageId) async {
+    final res = await _dio.get('/languages/$languageId/facets');
+    return LanguageFacets.fromJson(res.data as Map<String, dynamic>);
+  }
 }
 
 final settingsRepositoryProvider =
@@ -52,3 +57,8 @@ final languageSettingsProvider = FutureProvider.autoDispose
     .family<LanguageSetting, String>(
         (ref, languageId) =>
             ref.watch(settingsRepositoryProvider).loadLanguageSettings(languageId));
+
+final languageFacetsProvider = FutureProvider.autoDispose
+    .family<LanguageFacets, String>(
+        (ref, languageId) =>
+            ref.watch(settingsRepositoryProvider).loadFacets(languageId));

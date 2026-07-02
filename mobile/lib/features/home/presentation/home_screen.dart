@@ -16,6 +16,14 @@ Color _accentFor(LanguageSummary lang) {
   return AppColors.forLanguage(lang.code);
 }
 
+const _weekdayNames = [
+  'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY',
+];
+
+/// True when today matches the language's configured weekly review day.
+bool _isWeeklyDay(LanguageSummary lang) =>
+    _weekdayNames[DateTime.now().weekday - 1] == lang.weeklyReviewDay;
+
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
@@ -150,6 +158,26 @@ class _LanguageCard extends ConsumerWidget {
                       ? 'Tiếp tục học'
                       : 'Bắt đầu học'),
             ),
+            if (_isWeeklyDay(lang)) ...[
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.review,
+                  side: const BorderSide(color: AppColors.review),
+                  minimumSize: const Size.fromHeight(44),
+                ),
+                icon: const Icon(Icons.event_repeat, size: 18),
+                label: const Text('Ôn tập tuần — thẻ khó 7 ngày qua'),
+                onPressed: () async {
+                  await context.push('/study',
+                      extra: StudyLaunch.weekly(lang.languageId,
+                          ttsLang: lang.ttsLang,
+                          languageName: '${lang.name} · Ôn tuần',
+                          accentColor: lang.accentColor));
+                  ref.invalidate(homeDataProvider);
+                },
+              ),
+            ],
           ],
         ),
       ),

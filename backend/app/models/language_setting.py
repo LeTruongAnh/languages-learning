@@ -62,6 +62,9 @@ class LanguageSetting(Base, UUIDPKMixin, TimestampMixin):
     item_ordering: Mapped[str] = mapped_column(
         String(50), default="VOCAB_FIRST_WITH_REVIEW_PRIORITY", nullable=False
     )
+    # Weekly review: day of week (MONDAY..SUNDAY) + max items
+    weekly_review_day: Mapped[str] = mapped_column(String(10), default="SUNDAY", nullable=False)
+    weekly_review_limit: Mapped[int] = mapped_column(Integer, default=40, nullable=False)
     # FRONT (word->meaning) | REVERSE (meaning->word) | LISTENING (audio->word) | MIXED
     study_direction: Mapped[str] = mapped_column(String(20), default="FRONT", nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)

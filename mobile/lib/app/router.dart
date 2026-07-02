@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../core/models/models.dart';
 import '../features/auth/presentation/auth_controller.dart';
 import '../features/auth/presentation/login_screen.dart';
 import '../features/dashboard/presentation/dashboard_screen.dart';
 import '../features/hard_items/presentation/hard_items_screen.dart';
 import '../features/home/presentation/home_screen.dart';
+import '../features/settings/presentation/language_advanced_screen.dart';
 import '../features/settings/presentation/settings_screen.dart';
 import '../features/study/presentation/study_controller.dart';
 import '../features/study/presentation/study_screen.dart';
@@ -47,6 +49,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(path: '/dashboard', builder: (_, __) => const DashboardScreen()),
       GoRoute(path: '/settings', builder: (_, __) => const SettingsScreen()),
+      GoRoute(
+        path: '/settings/language-advanced',
+        builder: (_, state) =>
+            LanguageAdvancedScreen(language: state.extra! as Language),
+      ),
       GoRoute(path: '/hard-items', builder: (_, __) => const HardItemsScreen()),
     ],
   );

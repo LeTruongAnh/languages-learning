@@ -37,6 +37,7 @@ class LanguageSummary {
     required this.sentenceDueNew,
     required this.todayLearned,
     required this.dailyLimit,
+    this.weeklyReviewDay = 'SUNDAY',
     this.accentColor,
   });
 
@@ -51,6 +52,7 @@ class LanguageSummary {
   final int sentenceDueNew;
   final int todayLearned;
   final int dailyLimit;
+  final String weeklyReviewDay;
 
   factory LanguageSummary.fromJson(Map<String, dynamic> json) => LanguageSummary(
         languageId: json['languageId'] as String,
@@ -64,6 +66,7 @@ class LanguageSummary {
         sentenceDueNew: json['sentenceDueNew'] as int,
         todayLearned: json['todayLearned'] as int,
         dailyLimit: json['dailyLimit'] as int,
+        weeklyReviewDay: json['weeklyReviewDay'] as String? ?? 'SUNDAY',
       );
 }
 
@@ -230,6 +233,20 @@ class LanguageSetting {
     required this.vocabularyRatio,
     required this.newRatio,
     required this.studyDirection,
+    required this.timesLimit,
+    required this.sentenceTimesLimit,
+    required this.reviewIntervals,
+    required this.difficultyFilter,
+    required this.topicFilter,
+    required this.frequencyFilter,
+    required this.situationFilter,
+    required this.includePassedItems,
+    required this.passedReviewAfterDays,
+    required this.resetOnFail,
+    required this.avoidSameDayRepeat,
+    required this.sortMode,
+    required this.weeklyReviewDay,
+    required this.weeklyReviewLimit,
   });
 
   final String languageId;
@@ -243,6 +260,29 @@ class LanguageSetting {
 
   /// FRONT | REVERSE | LISTENING | MIXED
   final String studyDirection;
+  final int timesLimit;
+  final int sentenceTimesLimit;
+  final List<int> reviewIntervals;
+
+  /// ['ALL'] means no filter.
+  final List<String> difficultyFilter;
+  final List<String> topicFilter;
+  final List<String> frequencyFilter;
+  final List<String> situationFilter;
+  final bool includePassedItems;
+  final int passedReviewAfterDays;
+  final bool resetOnFail;
+  final bool avoidSameDayRepeat;
+
+  /// random | priority | oldest_first
+  final String sortMode;
+
+  /// MONDAY..SUNDAY
+  final String weeklyReviewDay;
+  final int weeklyReviewLimit;
+
+  static List<String> _strs(dynamic v) =>
+      (v as List<dynamic>? ?? const []).map((e) => e.toString()).toList();
 
   factory LanguageSetting.fromJson(Map<String, dynamic> json) => LanguageSetting(
         languageId: json['languageId'] as String,
@@ -250,6 +290,43 @@ class LanguageSetting {
         vocabularyRatio: double.parse(json['vocabularyRatio'].toString()),
         newRatio: double.parse(json['newRatio'].toString()),
         studyDirection: json['studyDirection'] as String? ?? 'FRONT',
+        timesLimit: json['timesLimit'] as int? ?? 3,
+        sentenceTimesLimit: json['sentenceTimesLimit'] as int? ?? 3,
+        reviewIntervals: (json['reviewIntervals'] as List<dynamic>? ?? [1, 3, 7])
+            .map((e) => int.parse(e.toString()))
+            .toList(),
+        difficultyFilter: _strs(json['difficultyFilter']),
+        topicFilter: _strs(json['topicFilter']),
+        frequencyFilter: _strs(json['frequencyFilter']),
+        situationFilter: _strs(json['situationFilter']),
+        includePassedItems: json['includePassedItems'] as bool? ?? false,
+        passedReviewAfterDays: json['passedReviewAfterDays'] as int? ?? 100,
+        resetOnFail: json['resetOnFail'] as bool? ?? true,
+        avoidSameDayRepeat: json['avoidSameDayRepeat'] as bool? ?? true,
+        sortMode: json['sortMode'] as String? ?? 'random',
+        weeklyReviewDay: json['weeklyReviewDay'] as String? ?? 'SUNDAY',
+        weeklyReviewLimit: json['weeklyReviewLimit'] as int? ?? 40,
+      );
+}
+
+class LanguageFacets {
+  const LanguageFacets({
+    required this.difficulties,
+    required this.topics,
+    required this.frequencyLevels,
+    required this.situations,
+  });
+
+  final List<String> difficulties;
+  final List<String> topics;
+  final List<String> frequencyLevels;
+  final List<String> situations;
+
+  factory LanguageFacets.fromJson(Map<String, dynamic> json) => LanguageFacets(
+        difficulties: LanguageSetting._strs(json['difficulties']),
+        topics: LanguageSetting._strs(json['topics']),
+        frequencyLevels: LanguageSetting._strs(json['frequencyLevels']),
+        situations: LanguageSetting._strs(json['situations']),
       );
 }
 

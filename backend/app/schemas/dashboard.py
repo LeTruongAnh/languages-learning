@@ -27,6 +27,7 @@ class LanguageSummary(CamelModel):
     sentence_due_new: int
     today_learned: int
     daily_limit: int
+    weekly_review_day: str = "SUNDAY"
 
 
 class HistoryDay(CamelModel):

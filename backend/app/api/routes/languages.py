@@ -15,7 +15,7 @@ from app.schemas.language import (
     LanguageSettingUpdate,
     LanguageUpdate,
 )
-from app.services import language_service
+from app.services import language_service, study_session_service
 
 router = APIRouter(prefix="/languages", tags=["languages"])
 
@@ -81,3 +81,13 @@ async def update_settings(
     db: AsyncSession = Depends(get_db),
 ):
     return await language_service.update_settings(db, current_user.id, language_id, body)
+
+
+@router.get("/{language_id}/facets")
+async def get_facets(
+    language_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Distinct difficulty/topic/frequency/situation values for filter UI."""
+    return await study_session_service.get_facets(db, current_user.id, language_id)

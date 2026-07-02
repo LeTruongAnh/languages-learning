@@ -144,12 +144,14 @@ async def languages(db: AsyncSession, user_id: uuid.UUID) -> list[LanguageSummar
                 ReviewLog.study_date == today,
             )
         ) or 0
-        daily_limit = await db.scalar(
-            select(LanguageSetting.daily_limit).where(
+        setting_row = (await db.execute(
+            select(LanguageSetting.daily_limit, LanguageSetting.weekly_review_day).where(
                 LanguageSetting.user_id == user_id,
                 LanguageSetting.language_id == lang.id,
             )
-        ) or 20
+        )).first()
+        daily_limit = setting_row.daily_limit if setting_row else 20
+        weekly_day = setting_row.weekly_review_day if setting_row else "SUNDAY"
 
         summaries.append(LanguageSummary(
             language_id=lang.id,
@@ -163,6 +165,7 @@ async def languages(db: AsyncSession, user_id: uuid.UUID) -> list[LanguageSummar
             sentence_due_new=sentence,
             today_learned=today_learned,
             daily_limit=daily_limit,
+            weekly_review_day=weekly_day,
         ))
     return summaries
 

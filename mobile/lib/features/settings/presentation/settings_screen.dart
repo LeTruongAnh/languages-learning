@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../app/theme.dart';
 import '../../../core/models/models.dart';
@@ -274,6 +275,13 @@ class _LanguageSettingsCard extends ConsumerWidget {
                         'reviewRatio': (1 - v).toStringAsFixed(3),
                       }),
                     ),
+                  ),
+                  _SettingRow(
+                    label: 'Nâng cao',
+                    value:
+                        'Bộ lọc học · thuật toán ôn tập · ôn tập tuần',
+                    onTap: () => context.push('/settings/language-advanced',
+                        extra: language),
                   ),
                 ],
               );

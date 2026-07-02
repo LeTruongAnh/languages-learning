@@ -4,13 +4,15 @@ import '../../../core/models/models.dart';
 import '../data/study_repository.dart';
 
 /// How a study session is launched from the UI.
-enum StudySource { daily, extra, hard }
+enum StudySource { daily, extra, weekly, hard }
 
 class StudyLaunch {
   const StudyLaunch.daily(this.languageId, {this.ttsLang, this.accentColor, this.languageName})
       : source = StudySource.daily;
   const StudyLaunch.extra(this.languageId, {this.ttsLang, this.accentColor, this.languageName})
       : source = StudySource.extra;
+  const StudyLaunch.weekly(this.languageId, {this.ttsLang, this.accentColor, this.languageName})
+      : source = StudySource.weekly;
   const StudyLaunch.hard()
       : source = StudySource.hard,
         languageId = null,
@@ -118,6 +120,7 @@ class StudyController extends StateNotifier<AsyncValue<StudyState>> {
       final session = switch (_launch.source) {
         StudySource.daily => await _repo.createDaily(_launch.languageId!),
         StudySource.extra => await _repo.createExtra(_launch.languageId!),
+        StudySource.weekly => await _repo.createWeekly(_launch.languageId!),
         StudySource.hard => await _repo.createHardSession(),
       };
       final firstPending = session.items.indexWhere((i) => i.result == null);

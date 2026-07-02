@@ -1,0 +1,11 @@
+INFO:     127.0.0.1:56749 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56750 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56756 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56756 - "POST /api/auth/register HTTP/1.1" 201 Created
+INFO:     127.0.0.1:56756 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56756 - "POST /api/languages HTTP/1.1" 201 Created
+INFO:     127.0.0.1:56756 - "POST /api/languages HTTP/1.1" 201 Created
+INFO:     127.0.0.1:56756 - "GET /api/study-items?pageSize=1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56756 - "POST /api/imports/study-items HTTP/1.1" 201 Created
+INFO:     127.0.0.1:56756 - "POST /api/imports/study-items HTTP/1.1" 201 Created
+INFO:     127.0.0.1:56756 - "GET /api/dashboard/languages HTTP/1.1" 200 OK

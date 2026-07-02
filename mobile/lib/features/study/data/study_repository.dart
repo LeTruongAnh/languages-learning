@@ -19,6 +19,11 @@ class StudyRepository {
     return StudySession.fromJson(res.data as Map<String, dynamic>);
   }
 
+  Future<StudySession> createWeekly(String languageId) async {
+    final res = await _dio.post('/languages/$languageId/study-sessions/weekly');
+    return StudySession.fromJson(res.data as Map<String, dynamic>);
+  }
+
   Future<StudySession> createHardSession() async {
     final res = await _dio.post('/hard-items/study-sessions');
     return StudySession.fromJson(res.data as Map<String, dynamic>);

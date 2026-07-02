@@ -75,6 +75,21 @@ async def create_extra(
     return await _session_out(db, session)
 
 
+@router.post(
+    "/languages/{language_id}/study-sessions/weekly",
+    response_model=SessionOut,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_weekly(
+    language_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Weekly review: re-drill last 7 days' items, hardest first."""
+    session = await study_session_service.create_weekly(db, current_user.id, language_id)
+    return await _session_out(db, session)
+
+
 @router.get("/languages/{language_id}/study-sessions/current", response_model=SessionOut)
 async def get_current(
     language_id: uuid.UUID,
