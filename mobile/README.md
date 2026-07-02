@@ -31,6 +31,10 @@ Base URL mặc định `http://10.0.2.2:8000/api` (Android emulator → localhos
 | Dashboard: stat cards + breakdown ngôn ngữ | ✅ |
 | Settings: TTS toggles + speech rate (PATCH API), logout, múi giờ | ✅ |
 | Hard Items: danh sách + tạo HARD_ITEMS session | ✅ |
+| SRS v2: 4 mức Quên/Khó/Nhớ/Dễ + ease factor | ✅ |
+| Undo thẻ vừa chấm (1 bước, kiểu Anki) | ✅ |
+| Chiều học: Từ→Nghĩa / Nghĩa→Từ / Nghe→Từ / Trộn (per language) | ✅ |
+| Nhắc học hằng ngày (local notification, không hỗ trợ web) | ✅ |
 
 ## Cấu trúc
 

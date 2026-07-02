@@ -58,6 +58,8 @@ class LanguageSettingUpdate(CamelModel):
     avoid_same_day_repeat: bool | None = None
     sort_mode: str | None = None
     item_ordering: str | None = None
+    study_direction: str | None = Field(
+        default=None, pattern="^(FRONT|REVERSE|LISTENING|MIXED)$")
 
     @model_validator(mode="after")
     def validate_ratios_and_intervals(self):
@@ -100,4 +102,5 @@ class LanguageSettingOut(CamelModel):
     avoid_same_day_repeat: bool
     sort_mode: str
     item_ordering: str
+    study_direction: str
     is_active: bool

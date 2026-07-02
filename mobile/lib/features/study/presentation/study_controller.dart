@@ -25,17 +25,24 @@ class StudyLaunch {
   final String? languageName;
 }
 
+/// Grades (Anki-style) — sent to the backend as-is.
+const kGradeAgain = 'AGAIN';
+const kGradeHard = 'HARD';
+const kGradeGood = 'GOOD';
+const kGradeEasy = 'EASY';
+const kGradeSkip = 'SKIP';
+
 /// UX model (see PLAN.md — SRS integrity):
-/// - The user answers cards strictly in order, but can navigate BACK to
-///   re-read answered cards (read-only: results are already applied to the
-///   spaced-repetition state server-side and must not change).
-/// - `index` is the card being VIEWED; `firstUnanswered` is the card that
-///   can still be answered. Forward navigation stops at firstUnanswered.
+/// - Cards are answered in order; the user can browse BACK to re-read
+///   answered cards (read-only).
+/// - Single-step UNDO (Anki-style): only the most recently answered card,
+///   while the session is still active.
 class StudyState {
   const StudyState({
     required this.session,
     required this.index,
     this.localResults = const {},
+    this.lastAnsweredItemId,
     this.showMeaning = false,
     this.showPronunciation = false,
     this.submitting = false,
@@ -44,9 +51,10 @@ class StudyState {
 
   final StudySession session;
   final int index;
-
-  /// Results submitted during this screen's lifetime (server truth mirror).
   final Map<String, String> localResults;
+
+  /// Session-item id of the most recent answer — undo target.
+  final String? lastAnsweredItemId;
   final bool showMeaning;
   final bool showPronunciation;
   final bool submitting;
@@ -57,7 +65,6 @@ class StudyState {
 
   String? resultOf(SessionItem item) => item.result ?? localResults[item.id];
 
-  /// Index of the first card without a result; -1 when all are answered.
   int get firstUnanswered =>
       session.items.indexWhere((i) => resultOf(i) == null);
 
@@ -67,10 +74,14 @@ class StudyState {
 
   bool get canGoForward => viewingAnswered && index < session.items.length - 1;
 
+  bool get canUndo => lastAnsweredItemId != null && !finished;
+
   StudyState copyWith({
     StudySession? session,
     int? index,
     Map<String, String>? localResults,
+    String? lastAnsweredItemId,
+    bool clearLastAnswered = false,
     bool? showMeaning,
     bool? showPronunciation,
     bool? submitting,
@@ -80,6 +91,9 @@ class StudyState {
         session: session ?? this.session,
         index: index ?? this.index,
         localResults: localResults ?? this.localResults,
+        lastAnsweredItemId: clearLastAnswered
+            ? null
+            : (lastAnsweredItemId ?? this.lastAnsweredItemId),
         showMeaning: showMeaning ?? this.showMeaning,
         showPronunciation: showPronunciation ?? this.showPronunciation,
         submitting: submitting ?? this.submitting,
@@ -127,23 +141,28 @@ class StudyController extends StateNotifier<AsyncValue<StudyState>> {
   void togglePronunciation() =>
       _update((s) => s.copyWith(showPronunciation: !s.showPronunciation));
 
-  /// Browse back to an answered card (read-only).
   void goBack() => _update((s) => s.canGoBack
       ? s.copyWith(index: s.index - 1, showMeaning: true, showPronunciation: true)
       : s);
 
-  /// Browse forward, up to the first unanswered card.
   void goForward() => _update((s) {
         if (!s.canGoForward) return s;
         final next = s.index + 1;
         final answered = s.resultOf(s.session.items[next]) != null;
-        // Answered cards open fully revealed; the active card starts hidden.
         return s.copyWith(
             index: next, showMeaning: answered, showPronunciation: answered);
       });
 
-  /// Submits PASS/FAIL/SKIP for the current answerable card and advances.
-  Future<void> submit(String result) async {
+  SessionProgressPatch _progressPatch(Map<String, dynamic> progress) =>
+      SessionProgressPatch(
+        completedItems: progress['completedItems'] as int,
+        passCount: progress['passCount'] as int,
+        failCount: progress['failCount'] as int,
+        skipCount: progress['skipCount'] as int,
+      );
+
+  /// Submits AGAIN/HARD/GOOD/EASY/SKIP for the current answerable card.
+  Future<void> submit(String grade) async {
     final s = state.valueOrNull;
     final current = s?.viewing;
     if (s == null || current == null || s.submitting) return;
@@ -154,16 +173,11 @@ class StudyController extends StateNotifier<AsyncValue<StudyState>> {
       final res = await _repo.submitReview(
         sessionId: s.session.id,
         sessionItemId: current.id,
-        result: result,
+        result: grade,
       );
-      final progress = res['sessionProgress'] as Map<String, dynamic>;
-      final updated = s.session.copyWith(
-        completedItems: progress['completedItems'] as int,
-        passCount: progress['passCount'] as int,
-        failCount: progress['failCount'] as int,
-        skipCount: progress['skipCount'] as int,
-      );
-      final results = {...s.localResults, current.id: result};
+      final patch = _progressPatch(res['sessionProgress'] as Map<String, dynamic>);
+      final updated = patch.applyTo(s.session);
+      final results = {...s.localResults, current.id: grade};
       final nextIndex = s.index + 1;
       final finished = nextIndex >= updated.items.length;
       if (finished) {
@@ -174,6 +188,7 @@ class StudyController extends StateNotifier<AsyncValue<StudyState>> {
       state = AsyncValue.data(s.copyWith(
         session: updated,
         localResults: results,
+        lastAnsweredItemId: current.id,
         index: finished ? s.index : nextIndex,
         showMeaning: false,
         showPronunciation: false,
@@ -181,20 +196,67 @@ class StudyController extends StateNotifier<AsyncValue<StudyState>> {
         finished: finished,
       ));
     } catch (e) {
-      // Keep the card; let the user retry (e.g. network hiccup).
       state = AsyncValue.data(s.copyWith(submitting: false));
     }
   }
 
-  /// Ends the session early. Unanswered cards are left untouched (they are
-  /// NOT counted as SKIP — no unfair penalty) and will be eligible again
-  /// in a future session.
+  /// Undo the most recent answer (single step, Anki-style).
+  Future<void> undo() async {
+    final s = state.valueOrNull;
+    final targetId = s?.lastAnsweredItemId;
+    if (s == null || targetId == null || s.submitting) return;
+
+    state = AsyncValue.data(s.copyWith(submitting: true));
+    try {
+      final res = await _repo.undoReview(
+        sessionId: s.session.id,
+        sessionItemId: targetId,
+      );
+      final patch = _progressPatch(res['sessionProgress'] as Map<String, dynamic>);
+      final updated = patch.applyTo(s.session);
+      final results = {...s.localResults}..remove(targetId);
+      final targetIndex =
+          s.session.items.indexWhere((i) => i.id == targetId);
+      state = AsyncValue.data(s.copyWith(
+        session: updated,
+        localResults: results,
+        clearLastAnswered: true, // single-step: no chained undo
+        index: targetIndex < 0 ? s.index : targetIndex,
+        showMeaning: false,
+        showPronunciation: false,
+        submitting: false,
+        finished: false,
+      ));
+    } catch (e) {
+      state = AsyncValue.data(s.copyWith(submitting: false));
+    }
+  }
+
+  /// Ends the session early. Unanswered cards are NOT counted as SKIP.
   Future<void> endSession() async {
     final s = state.valueOrNull;
     if (s == null) return;
     try {
       await _repo.completeSession(s.session.id);
     } catch (_) {}
-    _update((st) => st.copyWith(finished: true));
+    _update((st) => st.copyWith(finished: true, clearLastAnswered: true));
   }
+}
+
+class SessionProgressPatch {
+  const SessionProgressPatch({
+    required this.completedItems,
+    required this.passCount,
+    required this.failCount,
+    required this.skipCount,
+  });
+
+  final int completedItems, passCount, failCount, skipCount;
+
+  StudySession applyTo(StudySession session) => session.copyWith(
+        completedItems: completedItems,
+        passCount: passCount,
+        failCount: failCount,
+        skipCount: skipCount,
+      );
 }

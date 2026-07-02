@@ -1,5 +1,6 @@
 import uuid
 from datetime import date
+from decimal import Decimal
 
 from pydantic import Field
 
@@ -30,7 +31,8 @@ class SessionOut(CamelModel):
 
 
 class ReviewRequest(CamelModel):
-    result: str = Field(pattern="^(PASS|FAIL|SKIP)$")
+    # AGAIN/HARD/GOOD/EASY (Anki-style); PASS/FAIL kept as legacy aliases.
+    result: str = Field(pattern="^(AGAIN|HARD|GOOD|EASY|SKIP|PASS|FAIL)$")
     self_note: str | None = None
 
 
@@ -40,6 +42,8 @@ class NewProgress(CamelModel):
     wrong_count: int
     hard_level: str
     next_review_date: date | None
+    ease: Decimal = Decimal("2.50")
+    interval_days: int = 0
 
 
 class SessionProgress(CamelModel):
@@ -56,4 +60,12 @@ class ReviewResponse(CamelModel):
     result: str
     already_applied: bool = False
     new_progress: NewProgress
+    session_progress: SessionProgress
+
+
+class UndoResponse(CamelModel):
+    session_item_id: uuid.UUID
+    study_item_id: uuid.UUID
+    undone_result: str | None
+    restored: NewProgress
     session_progress: SessionProgress

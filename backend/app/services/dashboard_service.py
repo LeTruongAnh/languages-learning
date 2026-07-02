@@ -10,14 +10,18 @@ from app.core.timeutil import today_in_tz
 from app.models import Language, LanguageSetting, ReviewLog, StudyItem
 from app.schemas.dashboard import HistoryDay, LanguageSummary, TodaySummary
 from app.services.study_session_service import HARD_LEVELS
+
+# Grade categories (SRS v2): remembered vs forgotten, legacy aliases included.
+REMEMBERED = ("PASS", "HARD", "GOOD", "EASY")
+FORGOTTEN = ("FAIL", "AGAIN")
 from app.services.user_service import get_user_timezone
 
 
 def _result_counts_query(user_id: uuid.UUID):
     return select(
         func.count().label("learned"),
-        func.sum(case((ReviewLog.result == "PASS", 1), else_=0)).label("pass_count"),
-        func.sum(case((ReviewLog.result == "FAIL", 1), else_=0)).label("fail_count"),
+        func.sum(case((ReviewLog.result.in_(REMEMBERED), 1), else_=0)).label("pass_count"),
+        func.sum(case((ReviewLog.result.in_(FORGOTTEN), 1), else_=0)).label("fail_count"),
         func.sum(case((ReviewLog.result == "SKIP", 1), else_=0)).label("skip_count"),
     ).where(ReviewLog.user_id == user_id)
 
@@ -66,7 +70,8 @@ async def summary(db: AsyncSession, user_id: uuid.UUID) -> TodaySummary:
 
 
 async def _streak_days(db: AsyncSession, user_id: uuid.UUID, today: date) -> int:
-    """Consecutive days (ending today or yesterday) with at least one review."""
+    """Consecutive study days ending today/yesterday, with STREAK PROTECTION:
+    one single-day gap is forgiven (Duolingo-style freeze, simplified)."""
     rows = await db.scalars(
         select(ReviewLog.study_date)
         .where(ReviewLog.user_id == user_id, ReviewLog.study_date.is_not(None))
@@ -77,13 +82,25 @@ async def _streak_days(db: AsyncSession, user_id: uuid.UUID, today: date) -> int
     days = list(rows)
     if not days:
         return 0
-    # Streak may start today, or yesterday if today has no activity yet.
-    cursor = today if days[0] == today else today - timedelta(days=1)
+    grace = 1  # forgivable one-day gaps
+    one = timedelta(days=1)
+    # Start today, yesterday, or the day before (consuming grace).
+    if days[0] == today or days[0] == today - one:
+        cursor = days[0]
+    elif days[0] == today - 2 * one and grace:
+        grace = 0
+        cursor = days[0]
+    else:
+        return 0
     streak = 0
     for d in days:
         if d == cursor:
             streak += 1
-            cursor -= timedelta(days=1)
+            cursor -= one
+        elif d == cursor - one and grace:
+            grace = 0
+            streak += 1
+            cursor = d - one
         elif d < cursor:
             break
     return streak
@@ -157,8 +174,8 @@ async def history(db: AsyncSession, user_id: uuid.UUID, days: int = 30) -> list[
         select(
             ReviewLog.study_date,
             func.count().label("learned"),
-            func.sum(case((ReviewLog.result == "PASS", 1), else_=0)).label("pass_count"),
-            func.sum(case((ReviewLog.result == "FAIL", 1), else_=0)).label("fail_count"),
+            func.sum(case((ReviewLog.result.in_(REMEMBERED), 1), else_=0)).label("pass_count"),
+            func.sum(case((ReviewLog.result.in_(FORGOTTEN), 1), else_=0)).label("fail_count"),
             func.sum(case((ReviewLog.result == "SKIP", 1), else_=0)).label("skip_count"),
         )
         .where(

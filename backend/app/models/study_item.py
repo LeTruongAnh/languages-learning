@@ -1,7 +1,8 @@
 import uuid
 from datetime import date
+from decimal import Decimal
 
-from sqlalchemy import Boolean, CheckConstraint, Date, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import Boolean, CheckConstraint, Date, ForeignKey, Index, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin, UUIDPKMixin
@@ -44,4 +45,8 @@ class StudyItem(Base, UUIDPKMixin, TimestampMixin):
     wrong_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     last_result: Mapped[str | None] = mapped_column(String(20))
     hard_level: Mapped[str] = mapped_column(String(30), default="Normal", nullable=False)
+    # SM-2 (simplified): ease factor scales the next interval; interval_days
+    # is the last applied interval so it can grow multiplicatively.
+    ease: Mapped[Decimal] = mapped_column(Numeric(4, 2), default=Decimal("2.50"), nullable=False)
+    interval_days: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     is_archived: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

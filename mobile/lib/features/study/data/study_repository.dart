@@ -40,6 +40,16 @@ class StudyRepository {
     await _dio.post('/study-sessions/$sessionId/complete');
   }
 
+  /// Anki-style single-step undo of the most recently answered card.
+  Future<Map<String, dynamic>> undoReview({
+    required String sessionId,
+    required String sessionItemId,
+  }) async {
+    final res =
+        await _dio.post('/study-sessions/$sessionId/items/$sessionItemId/undo');
+    return res.data as Map<String, dynamic>;
+  }
+
   Future<List<StudyItemModel>> hardItems() async {
     final res = await _dio.get('/hard-items');
     return (res.data as List<dynamic>)

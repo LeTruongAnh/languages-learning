@@ -22,6 +22,8 @@ class UserSettingsOut(CamelModel):
     speech_rate: Decimal
     speech_volume: Decimal
     theme: str
+    reminder_enabled: bool
+    reminder_hour: int
 
 
 class UserSettingsUpdate(CamelModel):
@@ -31,6 +33,8 @@ class UserSettingsUpdate(CamelModel):
     speech_rate: Decimal | None = Field(default=None, ge=Decimal("0.1"), le=Decimal("2.0"))
     speech_volume: Decimal | None = Field(default=None, ge=Decimal("0.0"), le=Decimal("1.0"))
     theme: str | None = Field(default=None, pattern="^(system|light|dark)$")
+    reminder_enabled: bool | None = None
+    reminder_hour: int | None = Field(default=None, ge=0, le=23)
 
 
 @router.get("", response_model=UserSettingsOut)

@@ -1,11 +1,20 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/theme.dart';
 import '../../../core/models/models.dart';
+import '../../../core/providers.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../../home/presentation/home_screen.dart' show AppBottomNav;
 import '../data/settings_repository.dart';
+
+const kDirectionLabels = {
+  'FRONT': 'Từ → Nghĩa',
+  'REVERSE': 'Nghĩa → Từ',
+  'LISTENING': 'Nghe → Từ',
+  'MIXED': 'Trộn cả ba',
+};
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -13,6 +22,23 @@ class SettingsScreen extends ConsumerWidget {
   Future<void> _patchUser(WidgetRef ref, Map<String, dynamic> patch) async {
     await ref.read(settingsRepositoryProvider).update(patch);
     ref.invalidate(userSettingsProvider);
+  }
+
+  Future<void> _applyReminder(
+      BuildContext context, WidgetRef ref, UserSettings s,
+      {required bool enabled, int? hour}) async {
+    final h = hour ?? s.reminderHour;
+    await _patchUser(ref, {'reminderEnabled': enabled, 'reminderHour': h});
+    final reminder = ref.read(reminderServiceProvider);
+    if (enabled) {
+      final ok = await reminder.scheduleDaily(hour: h, timezone: s.timezone);
+      if (!ok && context.mounted && !kIsWeb) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Cần cấp quyền thông báo cho app trong cài đặt máy')));
+      }
+    } else {
+      await reminder.cancel();
+    }
   }
 
   @override
@@ -63,7 +89,48 @@ class SettingsScreen extends ConsumerWidget {
               ),
             ),
 
-            // Per-language study settings (daily limit + ratios)
+            const SizedBox(height: 18),
+            const Text('Nhắc học hằng ngày',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 10),
+            Card(
+              child: Column(
+                children: [
+                  SwitchListTile(
+                    title: const Text('Bật nhắc học',
+                        style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600)),
+                    subtitle: Text(kIsWeb
+                        ? 'Chỉ hỗ trợ trên app Android/iOS'
+                        : 'Thông báo lúc ${s.reminderHour}:00 mỗi ngày'),
+                    value: s.reminderEnabled,
+                    onChanged: kIsWeb
+                        ? null
+                        : (v) => _applyReminder(context, ref, s, enabled: v),
+                  ),
+                  if (s.reminderEnabled && !kIsWeb)
+                    ListTile(
+                      title: const Text('Giờ nhắc',
+                          style:
+                              TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600)),
+                      trailing: Text('${s.reminderHour}:00 ›',
+                          style: const TextStyle(
+                              fontSize: 14, fontWeight: FontWeight.w700)),
+                      onTap: () async {
+                        final picked = await showTimePicker(
+                          context: context,
+                          initialTime: TimeOfDay(hour: s.reminderHour, minute: 0),
+                        );
+                        if (picked != null && context.mounted) {
+                          await _applyReminder(context, ref, s,
+                              enabled: true, hour: picked.hour);
+                        }
+                      },
+                    ),
+                ],
+              ),
+            ),
+
+            // Per-language study settings
             ...languages.when(
               loading: () => const [SizedBox.shrink()],
               error: (e, _) => const [SizedBox.shrink()],
@@ -156,6 +223,11 @@ class _LanguageSettingsCard extends ConsumerWidget {
               return Column(
                 children: [
                   _SettingRow(
+                    label: 'Chiều học',
+                    value: kDirectionLabels[ls.studyDirection] ?? ls.studyDirection,
+                    onTap: () => _pickDirection(context, ref, ls),
+                  ),
+                  _SettingRow(
                     label: 'Số thẻ mỗi bài',
                     value: '${ls.dailyLimit} thẻ',
                     onTap: () => _editSlider(
@@ -210,6 +282,35 @@ class _LanguageSettingsCard extends ConsumerWidget {
         ),
       ],
     );
+  }
+
+  Future<void> _pickDirection(
+      BuildContext context, WidgetRef ref, LanguageSetting ls) async {
+    final picked = await showDialog<String>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: Text('Chiều học — ${language.name}',
+            style: const TextStyle(fontSize: 17)),
+        children: [
+          for (final entry in kDirectionLabels.entries)
+            RadioListTile<String>(
+              title: Text(entry.value),
+              subtitle: Text(switch (entry.key) {
+                'FRONT' => 'Nhìn từ, nhớ nghĩa (mặc định)',
+                'REVERSE' => 'Nhìn nghĩa Việt, nhớ lại từ',
+                'LISTENING' => 'Nghe phát âm, nhớ lại từ',
+                _ => 'Mỗi thẻ ngẫu nhiên một chiều',
+              }, style: const TextStyle(fontSize: 12)),
+              value: entry.key,
+              groupValue: ls.studyDirection,
+              onChanged: (v) => Navigator.pop(ctx, v),
+            ),
+        ],
+      ),
+    );
+    if (picked != null && picked != ls.studyDirection) {
+      await _patch(ref, language.id, {'studyDirection': picked});
+    }
   }
 
   Future<void> _editSlider(

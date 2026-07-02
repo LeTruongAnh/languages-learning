@@ -1,7 +1,7 @@
 import uuid
 from decimal import Decimal
 
-from sqlalchemy import Boolean, ForeignKey, Numeric, String
+from sqlalchemy import Boolean, ForeignKey, Integer, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin, UUIDPKMixin
@@ -23,3 +23,5 @@ class UserSetting(Base, UUIDPKMixin, TimestampMixin):
         Numeric(3, 2), default=Decimal("1.00"), nullable=False
     )
     theme: Mapped[str] = mapped_column(String(30), default="system", nullable=False)
+    reminder_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    reminder_hour: Mapped[int] = mapped_column(Integer, default=20, nullable=False)

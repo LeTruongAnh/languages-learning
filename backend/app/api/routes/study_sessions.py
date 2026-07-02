@@ -9,7 +9,13 @@ from app.api.deps import get_current_user
 from app.core.database import get_db
 from app.models import User
 from app.schemas.study_item import StudyItemOut
-from app.schemas.study_session import ReviewRequest, ReviewResponse, SessionItemOut, SessionOut
+from app.schemas.study_session import (
+    ReviewRequest,
+    ReviewResponse,
+    SessionItemOut,
+    SessionOut,
+    UndoResponse,
+)
 from app.services import review_service, study_session_service
 
 router = APIRouter(tags=["study-sessions"])
@@ -113,3 +119,19 @@ async def complete_session(
 ):
     session = await study_session_service.complete_session(db, current_user.id, session_id)
     return await _session_out(db, session)
+
+
+@router.post(
+    "/study-sessions/{session_id}/items/{session_item_id}/undo",
+    response_model=UndoResponse,
+)
+async def undo_review(
+    session_id: uuid.UUID,
+    session_item_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Anki-style single-step undo: only the most recently answered card."""
+    return await review_service.undo_review(
+        db, current_user.id, session_id, session_item_id
+    )

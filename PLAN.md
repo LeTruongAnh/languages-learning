@@ -190,7 +190,7 @@ code/
 
 Nguồn tham chiếu pattern: Anki (SRS thuần), Duolingo (gamification/habit), Memrise (đa dạng bài tập), Pimsleur (audio-first), Clozemaster (cloze), Pleco (tra cứu tiếng Trung).
 
-### Ưu tiên cao — tác động lớn, vừa sức
+### Ưu tiên cao — ✅ ĐÃ TRIỂN KHAI (02/07/2026): undo, 4 mức trả lời, ease factor SM-2, chiều học đảo, nhắc học + streak grace 1 ngày
 | # | Cải tiến | Học từ | Ghi chú triển khai |
 |---|---|---|---|
 | 1 | **Undo thẻ vừa trả lời** | Anki | Bấm nhầm PASS/FAIL rất phổ biến. Backend: endpoint revert dùng old_* trong review_logs (chỉ cho thẻ gần nhất, trong phiên đang mở) |

@@ -9,12 +9,23 @@ import '../../../core/providers.dart';
 import '../../settings/data/settings_repository.dart';
 import 'study_controller.dart';
 
-/// Study flow (spec §5.5) + UX decisions:
-/// - Pronunciation hidden behind a small button (recalling the sound is part
-///   of active recall — showing pinyin immediately gives the answer away).
-/// - Back/forward arrows browse ANSWERED cards read-only; results can't be
-///   changed (they're already applied to the SRS state server-side).
-/// - Close (✕) opens a sheet: pause (resume later) / end session / cancel.
+/// Card direction for a single card (resolved from language settings).
+enum CardDirection { front, reverse, listening }
+
+CardDirection resolveDirection(String setting, String itemId) {
+  switch (setting) {
+    case 'REVERSE':
+      return CardDirection.reverse;
+    case 'LISTENING':
+      return CardDirection.listening;
+    case 'MIXED':
+      // Stable per item within the session.
+      return CardDirection.values[itemId.hashCode.abs() % 3];
+    default:
+      return CardDirection.front;
+  }
+}
+
 class StudyScreen extends ConsumerStatefulWidget {
   const StudyScreen({super.key, required this.launch});
 
@@ -37,9 +48,20 @@ class _StudyScreenState extends ConsumerState<StudyScreen> {
         : AppColors.english;
   }
 
+  String get _directionSetting {
+    if (widget.launch.source == StudySource.hard) return 'FRONT';
+    final languageId = widget.launch.languageId;
+    if (languageId == null) return 'FRONT';
+    return ref
+            .watch(languageSettingsProvider(languageId))
+            .valueOrNull
+            ?.studyDirection ??
+        'FRONT';
+  }
+
   Future<void> _speak(StudyItemModel item) async {
     final ttsLang = widget.launch.ttsLang;
-    if (ttsLang == null) return; // hard sessions mix languages — manual only
+    if (ttsLang == null) return;
     final settings = ref.read(userSettingsProvider).valueOrNull;
     await ref.read(ttsServiceProvider).speak(
           text: item.text,
@@ -49,15 +71,17 @@ class _StudyScreenState extends ConsumerState<StudyScreen> {
         );
   }
 
-  void _maybeAutoSpeak(StudyState state) {
+  void _maybeAutoSpeak(StudyState state, CardDirection direction) {
     final item = state.viewing?.item;
-    // Only auto-speak the active (unanswered) card, once per card.
     if (item == null || state.viewingAnswered || item.id == _lastSpokenItemId) {
       return;
     }
+    // REVERSE: speaking the word up-front would reveal the answer.
+    if (direction == CardDirection.reverse) return;
     _lastSpokenItemId = item.id;
     final settings = ref.read(userSettingsProvider).valueOrNull;
-    if (settings?.autoSpeakOnCardOpen ?? true) {
+    final auto = settings?.autoSpeakOnCardOpen ?? true;
+    if (auto || direction == CardDirection.listening) {
       _speak(item);
     }
   }
@@ -102,7 +126,7 @@ class _StudyScreenState extends ConsumerState<StudyScreen> {
     if (action == 'pause') {
       context.pop();
     } else if (action == 'end') {
-      await controller.endSession(); // completion view will render
+      await controller.endSession();
     }
   }
 
@@ -111,6 +135,7 @@ class _StudyScreenState extends ConsumerState<StudyScreen> {
     final asyncState = ref.watch(studyControllerProvider(widget.launch));
     final controller = ref.read(studyControllerProvider(widget.launch).notifier);
     final accent = _accent;
+    final directionSetting = _directionSetting;
 
     return Scaffold(
       body: SafeArea(
@@ -121,22 +146,38 @@ class _StudyScreenState extends ConsumerState<StudyScreen> {
             if (state.finished || state.viewing == null) {
               return _CompletionView(session: state.session, accent: accent);
             }
-            WidgetsBinding.instance.addPostFrameCallback((_) => _maybeAutoSpeak(state));
+            final direction =
+                resolveDirection(directionSetting, state.viewing!.item.id);
+            WidgetsBinding.instance
+                .addPostFrameCallback((_) => _maybeAutoSpeak(state, direction));
             return _CardView(
               state: state,
               accent: accent,
+              direction: direction,
               title: widget.launch.languageName ??
                   (widget.launch.source == StudySource.hard ? 'Hard Items' : 'Study'),
               canSpeak: widget.launch.ttsLang != null,
               onSpeak: () => _speak(state.viewing!.item),
-              onToggleMeaning: controller.toggleMeaning,
+              onReveal: () {
+                controller.toggleMeaning();
+                // REVERSE: speak the word once the answer is revealed.
+                if (direction == CardDirection.reverse && !state.showMeaning) {
+                  _speak(state.viewing!.item);
+                }
+              },
               onTogglePronunciation: controller.togglePronunciation,
               onBack: controller.goBack,
               onForward: controller.goForward,
+              onUndo: state.canUndo
+                  ? () {
+                      HapticFeedback.lightImpact();
+                      controller.undo();
+                    }
+                  : null,
               onClose: () => _showExitSheet(controller),
-              onSubmit: (result) {
+              onSubmit: (grade) {
                 HapticFeedback.lightImpact();
-                controller.submit(result);
+                controller.submit(grade);
               },
             );
           },
@@ -150,26 +191,30 @@ class _CardView extends StatelessWidget {
   const _CardView({
     required this.state,
     required this.accent,
+    required this.direction,
     required this.title,
     required this.canSpeak,
     required this.onSpeak,
-    required this.onToggleMeaning,
+    required this.onReveal,
     required this.onTogglePronunciation,
     required this.onBack,
     required this.onForward,
+    required this.onUndo,
     required this.onClose,
     required this.onSubmit,
   });
 
   final StudyState state;
   final Color accent;
+  final CardDirection direction;
   final String title;
   final bool canSpeak;
   final VoidCallback onSpeak;
-  final VoidCallback onToggleMeaning;
+  final VoidCallback onReveal;
   final VoidCallback onTogglePronunciation;
   final VoidCallback onBack;
   final VoidCallback onForward;
+  final VoidCallback? onUndo;
   final VoidCallback onClose;
   final ValueChanged<String> onSubmit;
 
@@ -181,12 +226,13 @@ class _CardView extends StatelessWidget {
     final answered = state.resultOf(sessionItem);
     final answeredCount =
         state.firstUnanswered < 0 ? state.session.items.length : state.firstUnanswered;
+    final revealed = state.showMeaning || answered != null;
 
     return Column(
       children: [
-        // Header: close, title, position
+        // Header: close, title, undo, position
         Padding(
-          padding: const EdgeInsets.fromLTRB(8, 4, 20, 0),
+          padding: const EdgeInsets.fromLTRB(8, 4, 12, 0),
           child: Row(
             children: [
               IconButton(
@@ -197,6 +243,12 @@ class _CardView extends StatelessWidget {
                     textAlign: TextAlign.center,
                     style: TextStyle(
                         color: accent, fontSize: 15, fontWeight: FontWeight.w800)),
+              ),
+              IconButton(
+                icon: const Icon(Icons.undo),
+                color: AppColors.textSub,
+                tooltip: 'Hoàn tác thẻ vừa chấm',
+                onPressed: onUndo,
               ),
               Text('${state.index + 1} / ${state.session.totalItems}',
                   style: const TextStyle(
@@ -223,7 +275,6 @@ class _CardView extends StatelessWidget {
             padding: const EdgeInsets.all(AppDimens.screenPadding),
             child: Column(
               children: [
-                // Badges + browse arrows
                 Row(
                   children: [
                     IconButton(
@@ -240,12 +291,19 @@ class _CardView extends StatelessWidget {
                               label: isSentence ? 'Câu' : 'Từ vựng',
                               color: accent),
                           _Badge(
-                              label: sessionItem.isReview
-                                  ? 'Ôn tập · lần ${item.timesReview + 1}'
-                                  : 'Mới',
-                              color: sessionItem.isReview
-                                  ? AppColors.review
-                                  : AppColors.pass),
+                              label: switch (direction) {
+                                CardDirection.reverse => 'Nghĩa → Từ',
+                                CardDirection.listening => 'Nghe → Từ',
+                                _ => sessionItem.isReview
+                                    ? 'Ôn tập · lần ${item.timesReview + 1}'
+                                    : 'Mới',
+                              },
+                              color: switch (direction) {
+                                CardDirection.front => sessionItem.isReview
+                                    ? AppColors.review
+                                    : AppColors.pass,
+                                _ => AppColors.review,
+                              }),
                           if (item.hardLevel != 'Normal')
                             _Badge(
                                 label: item.hardLevel,
@@ -261,120 +319,52 @@ class _CardView extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 20),
-                Text(item.text,
-                    textAlign: TextAlign.center,
-                    style: isSentence
-                        ? StudyTextStyles.sentenceText
-                        : StudyTextStyles.mainText),
-                const SizedBox(height: 8),
-                // Pronunciation: hidden behind a small button (active recall)
-                if (item.pronunciation != null)
-                  state.showPronunciation
-                      ? Text(item.pronunciation!,
-                          textAlign: TextAlign.center,
-                          style: StudyTextStyles.pronunciation)
-                      : TextButton.icon(
-                          onPressed: onTogglePronunciation,
-                          icon: const Icon(Icons.hearing, size: 16),
-                          label: const Text('Phiên âm'),
-                          style: TextButton.styleFrom(
-                              foregroundColor: AppColors.textSub),
-                        ),
-                if (canSpeak) ...[
-                  const SizedBox(height: 12),
-                  IconButton.filledTonal(
-                    iconSize: 26,
-                    onPressed: onSpeak,
-                    icon: Icon(Icons.volume_up, color: accent),
-                  ),
-                ],
+                ..._buildPrompt(item, isSentence, revealed),
                 const SizedBox(height: 20),
-                if (!state.showMeaning)
+                if (!revealed)
                   OutlinedButton(
-                    onPressed: onToggleMeaning,
-                    child: const Text('👁  Hiện nghĩa'),
+                    onPressed: onReveal,
+                    child: Text(direction == CardDirection.front
+                        ? '👁  Hiện nghĩa'
+                        : '👁  Hiện đáp án'),
                   )
                 else
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(18),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(item.vietnameseMeaning ?? '—',
-                              style: StudyTextStyles.meaning),
-                          if (item.example != null) ...[
-                            const SizedBox(height: 10),
-                            Text(item.example!,
-                                style: TextStyle(
-                                    fontSize: 15,
-                                    fontFamilyFallback: StudyTextStyles
-                                        .sentenceText.fontFamilyFallback)),
-                          ],
-                          if (item.exampleVietnamese != null)
-                            Text(item.exampleVietnamese!,
-                                style: const TextStyle(
-                                    fontSize: 14, color: AppColors.textSub)),
-                        ],
-                      ),
-                    ),
-                  ),
+                  _buildAnswer(item, isSentence),
               ],
             ),
           ),
         ),
-        // Bottom bar: answer buttons for the active card,
-        // read-only result + next for answered cards.
+        // Bottom: 4 grade buttons (active card) / result + next (answered card)
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 14),
           child: answered != null
-              ? Row(
+              ? _AnsweredBar(
+                  result: answered, accent: accent, onForward: onForward)
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Expanded(
-                      child: Container(
-                        height: AppDimens.resultButtonHeight,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: _resultColor(answered).withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Text('Đã trả lời: $answered',
-                            style: TextStyle(
-                                fontWeight: FontWeight.w800,
-                                color: _resultColor(answered))),
-                      ),
+                    TextButton(
+                      onPressed:
+                          state.submitting ? null : () => onSubmit(kGradeSkip),
+                      child: const Text('Bỏ qua thẻ này',
+                          style: TextStyle(
+                              color: AppColors.skip, fontSize: 13)),
                     ),
-                    const SizedBox(width: 10),
-                    FilledButton(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: accent,
-                        minimumSize:
-                            const Size(90, AppDimens.resultButtonHeight),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16)),
-                      ),
-                      onPressed: onForward,
-                      child: const Text('Tiếp →',
-                          style: TextStyle(fontWeight: FontWeight.w800)),
+                    Row(
+                      children: [
+                        _GradeButton('Quên', AppColors.fail,
+                            state.submitting ? null : () => onSubmit(kGradeAgain)),
+                        const SizedBox(width: 8),
+                        _GradeButton('Khó', AppColors.hardItems,
+                            state.submitting ? null : () => onSubmit(kGradeHard)),
+                        const SizedBox(width: 8),
+                        _GradeButton('Nhớ', AppColors.pass,
+                            state.submitting ? null : () => onSubmit(kGradeGood)),
+                        const SizedBox(width: 8),
+                        _GradeButton('Dễ', AppColors.english,
+                            state.submitting ? null : () => onSubmit(kGradeEasy)),
+                      ],
                     ),
-                  ],
-                )
-              : Row(
-                  children: [
-                    Expanded(
-                        flex: 12,
-                        child: _ResultButton('FAIL', AppColors.fail,
-                            state.submitting ? null : () => onSubmit('FAIL'))),
-                    const SizedBox(width: 10),
-                    Expanded(
-                        flex: 8,
-                        child: _ResultButton('SKIP', AppColors.skip,
-                            state.submitting ? null : () => onSubmit('SKIP'))),
-                    const SizedBox(width: 10),
-                    Expanded(
-                        flex: 12,
-                        child: _ResultButton('PASS', AppColors.pass,
-                            state.submitting ? null : () => onSubmit('PASS'))),
                   ],
                 ),
         ),
@@ -382,11 +372,192 @@ class _CardView extends StatelessWidget {
     );
   }
 
-  static Color _resultColor(String result) => switch (result) {
-        'PASS' => AppColors.pass,
-        'FAIL' => AppColors.fail,
+  /// The question side, depending on direction.
+  List<Widget> _buildPrompt(StudyItemModel item, bool isSentence, bool revealed) {
+    switch (direction) {
+      case CardDirection.reverse:
+        return [
+          Text(item.vietnameseMeaning ?? '—',
+              textAlign: TextAlign.center, style: StudyTextStyles.sentenceText),
+          if (revealed) ...[
+            const SizedBox(height: 16),
+            Text(item.text,
+                textAlign: TextAlign.center,
+                style: isSentence
+                    ? StudyTextStyles.sentenceText
+                    : StudyTextStyles.mainText),
+            if (item.pronunciation != null)
+              Text(item.pronunciation!,
+                  textAlign: TextAlign.center,
+                  style: StudyTextStyles.pronunciation),
+            if (canSpeak)
+              IconButton.filledTonal(
+                  iconSize: 26,
+                  onPressed: onSpeak,
+                  icon: Icon(Icons.volume_up, color: accent)),
+          ],
+        ];
+      case CardDirection.listening:
+        return [
+          IconButton.filledTonal(
+            iconSize: 44,
+            padding: const EdgeInsets.all(20),
+            onPressed: onSpeak,
+            icon: Icon(Icons.volume_up, color: accent),
+          ),
+          const SizedBox(height: 6),
+          const Text('Nghe và nhớ lại từ',
+              style: TextStyle(fontSize: 13, color: AppColors.textSub)),
+          if (revealed) ...[
+            const SizedBox(height: 16),
+            Text(item.text,
+                textAlign: TextAlign.center,
+                style: isSentence
+                    ? StudyTextStyles.sentenceText
+                    : StudyTextStyles.mainText),
+            if (item.pronunciation != null)
+              Text(item.pronunciation!,
+                  textAlign: TextAlign.center,
+                  style: StudyTextStyles.pronunciation),
+          ],
+        ];
+      case CardDirection.front:
+        return [
+          Text(item.text,
+              textAlign: TextAlign.center,
+              style: isSentence
+                  ? StudyTextStyles.sentenceText
+                  : StudyTextStyles.mainText),
+          const SizedBox(height: 8),
+          if (item.pronunciation != null)
+            state.showPronunciation || revealed
+                ? Text(item.pronunciation!,
+                    textAlign: TextAlign.center,
+                    style: StudyTextStyles.pronunciation)
+                : TextButton.icon(
+                    onPressed: onTogglePronunciation,
+                    icon: const Icon(Icons.hearing, size: 16),
+                    label: const Text('Phiên âm'),
+                    style:
+                        TextButton.styleFrom(foregroundColor: AppColors.textSub),
+                  ),
+          if (canSpeak) ...[
+            const SizedBox(height: 12),
+            IconButton.filledTonal(
+                iconSize: 26,
+                onPressed: onSpeak,
+                icon: Icon(Icons.volume_up, color: accent)),
+          ],
+        ];
+    }
+  }
+
+  /// The answer side.
+  Widget _buildAnswer(StudyItemModel item, bool isSentence) {
+    final showMeaningInAnswer = direction != CardDirection.reverse;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (showMeaningInAnswer)
+              Text(item.vietnameseMeaning ?? '—', style: StudyTextStyles.meaning),
+            if (item.example != null) ...[
+              const SizedBox(height: 10),
+              Text(item.example!,
+                  style: TextStyle(
+                      fontSize: 15,
+                      fontFamilyFallback:
+                          StudyTextStyles.sentenceText.fontFamilyFallback)),
+            ],
+            if (item.exampleVietnamese != null)
+              Text(item.exampleVietnamese!,
+                  style: const TextStyle(fontSize: 14, color: AppColors.textSub)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AnsweredBar extends StatelessWidget {
+  const _AnsweredBar(
+      {required this.result, required this.accent, required this.onForward});
+
+  final String result;
+  final Color accent;
+  final VoidCallback onForward;
+
+  static const _labels = {
+    'AGAIN': 'Quên', 'HARD': 'Khó', 'GOOD': 'Nhớ', 'EASY': 'Dễ',
+    'SKIP': 'Bỏ qua', 'PASS': 'Nhớ', 'FAIL': 'Quên',
+  };
+
+  static Color _color(String r) => switch (r) {
+        'GOOD' || 'EASY' || 'PASS' => AppColors.pass,
+        'HARD' => AppColors.hardItems,
+        'AGAIN' || 'FAIL' => AppColors.fail,
         _ => AppColors.skip,
       };
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _color(result);
+    return Row(
+      children: [
+        Expanded(
+          child: Container(
+            height: AppDimens.resultButtonHeight,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Text('Đã trả lời: ${_labels[result] ?? result}',
+                style: TextStyle(fontWeight: FontWeight.w800, color: color)),
+          ),
+        ),
+        const SizedBox(width: 10),
+        FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: accent,
+            minimumSize: const Size(90, AppDimens.resultButtonHeight),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          ),
+          onPressed: onForward,
+          child: const Text('Tiếp →',
+              style: TextStyle(fontWeight: FontWeight.w800)),
+        ),
+      ],
+    );
+  }
+}
+
+class _GradeButton extends StatelessWidget {
+  const _GradeButton(this.label, this.color, this.onTap);
+
+  final String label;
+  final Color color;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: FilledButton(
+        style: FilledButton.styleFrom(
+          backgroundColor: color,
+          padding: EdgeInsets.zero,
+          minimumSize: const Size.fromHeight(AppDimens.resultButtonHeight),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        ),
+        onPressed: onTap,
+        child: Text(label,
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
+      ),
+    );
+  }
 }
 
 class _CompletionView extends StatelessWidget {
@@ -421,11 +592,11 @@ class _CompletionView extends StatelessWidget {
             const SizedBox(height: 24),
             Row(
               children: [
-                _StatBox('${session.passCount}', 'PASS', AppColors.pass),
+                _StatBox('${session.passCount}', 'Nhớ', AppColors.pass),
                 const SizedBox(width: 10),
-                _StatBox('${session.failCount}', 'FAIL', AppColors.fail),
+                _StatBox('${session.failCount}', 'Quên', AppColors.fail),
                 const SizedBox(width: 10),
-                _StatBox('${session.skipCount}', 'SKIP', AppColors.skip),
+                _StatBox('${session.skipCount}', 'Bỏ qua', AppColors.skip),
               ],
             ),
           ],
@@ -480,27 +651,6 @@ class _Badge extends StatelessWidget {
       ),
       child: Text(label,
           style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color)),
-    );
-  }
-}
-
-class _ResultButton extends StatelessWidget {
-  const _ResultButton(this.label, this.color, this.onTap);
-
-  final String label;
-  final Color color;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return FilledButton(
-      style: FilledButton.styleFrom(
-        backgroundColor: color,
-        minimumSize: const Size.fromHeight(AppDimens.resultButtonHeight),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      ),
-      onPressed: onTap,
-      child: Text(label, style: const TextStyle(fontWeight: FontWeight.w800)),
     );
   }
 }

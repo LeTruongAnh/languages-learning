@@ -229,6 +229,7 @@ class LanguageSetting {
     required this.dailyLimit,
     required this.vocabularyRatio,
     required this.newRatio,
+    required this.studyDirection,
   });
 
   final String languageId;
@@ -240,11 +241,15 @@ class LanguageSetting {
   /// 0..1 — review ratio = 1 - newRatio.
   final double newRatio;
 
+  /// FRONT | REVERSE | LISTENING | MIXED
+  final String studyDirection;
+
   factory LanguageSetting.fromJson(Map<String, dynamic> json) => LanguageSetting(
         languageId: json['languageId'] as String,
         dailyLimit: json['dailyLimit'] as int,
         vocabularyRatio: double.parse(json['vocabularyRatio'].toString()),
         newRatio: double.parse(json['newRatio'].toString()),
+        studyDirection: json['studyDirection'] as String? ?? 'FRONT',
       );
 }
 
@@ -255,6 +260,8 @@ class UserSettings {
     required this.speechRate,
     required this.speechVolume,
     required this.timezone,
+    required this.reminderEnabled,
+    required this.reminderHour,
   });
 
   final bool autoSpeakOnCardOpen;
@@ -262,6 +269,8 @@ class UserSettings {
   final double speechRate;
   final double speechVolume;
   final String timezone;
+  final bool reminderEnabled;
+  final int reminderHour;
 
   factory UserSettings.fromJson(Map<String, dynamic> json) => UserSettings(
         autoSpeakOnCardOpen: json['autoSpeakOnCardOpen'] as bool,
@@ -269,5 +278,7 @@ class UserSettings {
         speechRate: double.parse(json['speechRate'].toString()),
         speechVolume: double.parse(json['speechVolume'].toString()),
         timezone: json['timezone'] as String,
+        reminderEnabled: json['reminderEnabled'] as bool? ?? false,
+        reminderHour: json['reminderHour'] as int? ?? 20,
       );
 }
