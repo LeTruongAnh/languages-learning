@@ -223,6 +223,31 @@ class StudySession {
       );
 }
 
+class LanguageSetting {
+  const LanguageSetting({
+    required this.languageId,
+    required this.dailyLimit,
+    required this.vocabularyRatio,
+    required this.newRatio,
+  });
+
+  final String languageId;
+  final int dailyLimit;
+
+  /// 0..1 — sentence ratio = 1 - vocabularyRatio.
+  final double vocabularyRatio;
+
+  /// 0..1 — review ratio = 1 - newRatio.
+  final double newRatio;
+
+  factory LanguageSetting.fromJson(Map<String, dynamic> json) => LanguageSetting(
+        languageId: json['languageId'] as String,
+        dailyLimit: json['dailyLimit'] as int,
+        vocabularyRatio: double.parse(json['vocabularyRatio'].toString()),
+        newRatio: double.parse(json['newRatio'].toString()),
+      );
+}
+
 class UserSettings {
   const UserSettings({
     required this.autoSpeakOnCardOpen,

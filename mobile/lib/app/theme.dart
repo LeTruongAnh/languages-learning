@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 /// Design tokens — must match design/mobile_mockup.html and PLAN.md §4.1.
 abstract final class AppColors {
@@ -34,6 +35,18 @@ abstract final class AppDimens {
   static const screenPadding = 20.0;
 }
 
+/// CJK font fallback. On Flutter web the default fonts lack CJK glyphs, so
+/// Chinese briefly renders as tofu squares (□) until canvaskit lazy-loads a
+/// fallback. Preloading Noto Sans SC at startup removes that flash; Flutter
+/// re-renders text automatically once the font finishes loading.
+List<String> _cjkFallback = [];
+
+Future<void> preloadCjkFonts() async {
+  final noto = GoogleFonts.notoSansSc();
+  _cjkFallback = [if (noto.fontFamily != null) noto.fontFamily!];
+  await GoogleFonts.pendingFonts([noto]);
+}
+
 ThemeData buildAppTheme() {
   final base = ThemeData(
     useMaterial3: true,
@@ -47,6 +60,7 @@ ThemeData buildAppTheme() {
     textTheme: base.textTheme.apply(
       bodyColor: AppColors.text,
       displayColor: AppColors.text,
+      fontFamilyFallback: _cjkFallback,
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
@@ -59,8 +73,20 @@ ThemeData buildAppTheme() {
 }
 
 /// Typography for the study card (spec §5.5): big main text, smaller pinyin.
+/// Not const: fontFamilyFallback is resolved after the CJK font registers.
 abstract final class StudyTextStyles {
-  static const mainText = TextStyle(fontSize: 48, fontWeight: FontWeight.w800, height: 1.2);
-  static const pronunciation = TextStyle(fontSize: 20, color: AppColors.textSub);
-  static const meaning = TextStyle(fontSize: 20, fontWeight: FontWeight.w700);
+  static TextStyle get mainText => TextStyle(
+      fontSize: 48,
+      fontWeight: FontWeight.w800,
+      height: 1.2,
+      fontFamilyFallback: _cjkFallback);
+  static TextStyle get sentenceText => TextStyle(
+      fontSize: 28,
+      fontWeight: FontWeight.w800,
+      height: 1.35,
+      fontFamilyFallback: _cjkFallback);
+  static TextStyle get pronunciation =>
+      const TextStyle(fontSize: 20, color: AppColors.textSub);
+  static TextStyle get meaning =>
+      const TextStyle(fontSize: 20, fontWeight: FontWeight.w700);
 }

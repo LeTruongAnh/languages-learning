@@ -9,8 +9,12 @@ import '../../../core/providers.dart';
 import '../../settings/data/settings_repository.dart';
 import 'study_controller.dart';
 
-/// Study flow (spec §5.5): fetches/creates the session, shows cards one by
-/// one, submits PASS/FAIL/SKIP, auto-TTS, then a completion view.
+/// Study flow (spec §5.5) + UX decisions:
+/// - Pronunciation hidden behind a small button (recalling the sound is part
+///   of active recall — showing pinyin immediately gives the answer away).
+/// - Back/forward arrows browse ANSWERED cards read-only; results can't be
+///   changed (they're already applied to the SRS state server-side).
+/// - Close (✕) opens a sheet: pause (resume later) / end session / cancel.
 class StudyScreen extends ConsumerStatefulWidget {
   const StudyScreen({super.key, required this.launch});
 
@@ -46,12 +50,59 @@ class _StudyScreenState extends ConsumerState<StudyScreen> {
   }
 
   void _maybeAutoSpeak(StudyState state) {
-    final item = state.current?.item;
-    if (item == null || item.id == _lastSpokenItemId) return;
+    final item = state.viewing?.item;
+    // Only auto-speak the active (unanswered) card, once per card.
+    if (item == null || state.viewingAnswered || item.id == _lastSpokenItemId) {
+      return;
+    }
     _lastSpokenItemId = item.id;
     final settings = ref.read(userSettingsProvider).valueOrNull;
     if (settings?.autoSpeakOnCardOpen ?? true) {
       _speak(item);
+    }
+  }
+
+  Future<void> _showExitSheet(StudyController controller) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            ListTile(
+              leading: const Icon(Icons.pause_circle_outline),
+              title: const Text('Tạm dừng',
+                  style: TextStyle(fontWeight: FontWeight.w700)),
+              subtitle: const Text('Giữ phiên học, quay lại làm tiếp sau'),
+              onTap: () => Navigator.pop(ctx, 'pause'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.flag_outlined, color: AppColors.fail),
+              title: const Text('Kết thúc bài',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w700, color: AppColors.fail)),
+              subtitle: const Text(
+                  'Chốt kết quả; thẻ chưa làm sẽ quay lại ở phiên sau'),
+              onTap: () => Navigator.pop(ctx, 'end'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.close),
+              title: const Text('Hủy'),
+              onTap: () => Navigator.pop(ctx),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (!mounted) return;
+    if (action == 'pause') {
+      context.pop();
+    } else if (action == 'end') {
+      await controller.endSession(); // completion view will render
     }
   }
 
@@ -67,7 +118,7 @@ class _StudyScreenState extends ConsumerState<StudyScreen> {
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (e, _) => _StudyError(onRetry: controller.load),
           data: (state) {
-            if (state.finished || state.current == null) {
+            if (state.finished || state.viewing == null) {
               return _CompletionView(session: state.session, accent: accent);
             }
             WidgetsBinding.instance.addPostFrameCallback((_) => _maybeAutoSpeak(state));
@@ -77,8 +128,12 @@ class _StudyScreenState extends ConsumerState<StudyScreen> {
               title: widget.launch.languageName ??
                   (widget.launch.source == StudySource.hard ? 'Hard Items' : 'Study'),
               canSpeak: widget.launch.ttsLang != null,
-              onSpeak: () => _speak(state.current!.item),
+              onSpeak: () => _speak(state.viewing!.item),
               onToggleMeaning: controller.toggleMeaning,
+              onTogglePronunciation: controller.togglePronunciation,
+              onBack: controller.goBack,
+              onForward: controller.goForward,
+              onClose: () => _showExitSheet(controller),
               onSubmit: (result) {
                 HapticFeedback.lightImpact();
                 controller.submit(result);
@@ -99,6 +154,10 @@ class _CardView extends StatelessWidget {
     required this.canSpeak,
     required this.onSpeak,
     required this.onToggleMeaning,
+    required this.onTogglePronunciation,
+    required this.onBack,
+    required this.onForward,
+    required this.onClose,
     required this.onSubmit,
   });
 
@@ -108,24 +167,31 @@ class _CardView extends StatelessWidget {
   final bool canSpeak;
   final VoidCallback onSpeak;
   final VoidCallback onToggleMeaning;
+  final VoidCallback onTogglePronunciation;
+  final VoidCallback onBack;
+  final VoidCallback onForward;
+  final VoidCallback onClose;
   final ValueChanged<String> onSubmit;
 
   @override
   Widget build(BuildContext context) {
-    final sessionItem = state.current!;
+    final sessionItem = state.viewing!;
     final item = sessionItem.item;
     final isSentence = item.itemType == 'SENTENCE';
+    final answered = state.resultOf(sessionItem);
+    final answeredCount =
+        state.firstUnanswered < 0 ? state.session.items.length : state.firstUnanswered;
 
     return Column(
       children: [
-        // Header: close, title, progress
+        // Header: close, title, position
         Padding(
           padding: const EdgeInsets.fromLTRB(8, 4, 20, 0),
           child: Row(
             children: [
               IconButton(
                   icon: const Icon(Icons.close, color: AppColors.textSub),
-                  onPressed: () => context.pop()),
+                  onPressed: onClose),
               Expanded(
                 child: Text(title,
                     textAlign: TextAlign.center,
@@ -145,7 +211,7 @@ class _CardView extends StatelessWidget {
             child: LinearProgressIndicator(
               value: state.session.totalItems == 0
                   ? 0
-                  : state.index / state.session.totalItems,
+                  : answeredCount / state.session.totalItems,
               minHeight: 4,
               color: accent,
               backgroundColor: AppColors.border,
@@ -157,46 +223,72 @@ class _CardView extends StatelessWidget {
             padding: const EdgeInsets.all(AppDimens.screenPadding),
             child: Column(
               children: [
-                Wrap(
-                  spacing: 8,
-                  alignment: WrapAlignment.center,
+                // Badges + browse arrows
+                Row(
                   children: [
-                    _Badge(
-                        label: isSentence ? 'Câu' : 'Từ vựng',
-                        color: accent),
-                    _Badge(
-                        label: sessionItem.isReview
-                            ? 'Ôn tập · lần ${item.timesReview + 1}'
-                            : 'Mới',
-                        color: sessionItem.isReview
-                            ? AppColors.review
-                            : AppColors.pass),
-                    if (item.hardLevel != 'Normal')
-                      _Badge(label: item.hardLevel, color: AppColors.hardItems),
+                    IconButton(
+                      onPressed: state.canGoBack ? onBack : null,
+                      icon: const Icon(Icons.chevron_left),
+                      tooltip: 'Xem thẻ trước',
+                    ),
+                    Expanded(
+                      child: Wrap(
+                        spacing: 8,
+                        alignment: WrapAlignment.center,
+                        children: [
+                          _Badge(
+                              label: isSentence ? 'Câu' : 'Từ vựng',
+                              color: accent),
+                          _Badge(
+                              label: sessionItem.isReview
+                                  ? 'Ôn tập · lần ${item.timesReview + 1}'
+                                  : 'Mới',
+                              color: sessionItem.isReview
+                                  ? AppColors.review
+                                  : AppColors.pass),
+                          if (item.hardLevel != 'Normal')
+                            _Badge(
+                                label: item.hardLevel,
+                                color: AppColors.hardItems),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: state.canGoForward ? onForward : null,
+                      icon: const Icon(Icons.chevron_right),
+                      tooltip: 'Thẻ tiếp theo',
+                    ),
                   ],
                 ),
-                const SizedBox(height: 28),
+                const SizedBox(height: 20),
                 Text(item.text,
                     textAlign: TextAlign.center,
                     style: isSentence
-                        ? const TextStyle(
-                            fontSize: 28, fontWeight: FontWeight.w800, height: 1.35)
+                        ? StudyTextStyles.sentenceText
                         : StudyTextStyles.mainText),
-                if (item.pronunciation != null) ...[
-                  const SizedBox(height: 6),
-                  Text(item.pronunciation!,
-                      textAlign: TextAlign.center,
-                      style: StudyTextStyles.pronunciation),
-                ],
+                const SizedBox(height: 8),
+                // Pronunciation: hidden behind a small button (active recall)
+                if (item.pronunciation != null)
+                  state.showPronunciation
+                      ? Text(item.pronunciation!,
+                          textAlign: TextAlign.center,
+                          style: StudyTextStyles.pronunciation)
+                      : TextButton.icon(
+                          onPressed: onTogglePronunciation,
+                          icon: const Icon(Icons.hearing, size: 16),
+                          label: const Text('Phiên âm'),
+                          style: TextButton.styleFrom(
+                              foregroundColor: AppColors.textSub),
+                        ),
                 if (canSpeak) ...[
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 12),
                   IconButton.filledTonal(
                     iconSize: 26,
                     onPressed: onSpeak,
                     icon: Icon(Icons.volume_up, color: accent),
                   ),
                 ],
-                const SizedBox(height: 22),
+                const SizedBox(height: 20),
                 if (!state.showMeaning)
                   OutlinedButton(
                     onPressed: onToggleMeaning,
@@ -213,7 +305,11 @@ class _CardView extends StatelessWidget {
                               style: StudyTextStyles.meaning),
                           if (item.example != null) ...[
                             const SizedBox(height: 10),
-                            Text(item.example!, style: const TextStyle(fontSize: 15)),
+                            Text(item.example!,
+                                style: TextStyle(
+                                    fontSize: 15,
+                                    fontFamilyFallback: StudyTextStyles
+                                        .sentenceText.fontFamilyFallback)),
                           ],
                           if (item.exampleVietnamese != null)
                             Text(item.exampleVietnamese!,
@@ -227,31 +323,70 @@ class _CardView extends StatelessWidget {
             ),
           ),
         ),
-        // Fixed result bar — thumb-reachable, 56dp (PLAN.md §4.3).
+        // Bottom bar: answer buttons for the active card,
+        // read-only result + next for answered cards.
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-          child: Row(
-            children: [
-              Expanded(
-                  flex: 12,
-                  child: _ResultButton('FAIL', AppColors.fail,
-                      state.submitting ? null : () => onSubmit('FAIL'))),
-              const SizedBox(width: 10),
-              Expanded(
-                  flex: 8,
-                  child: _ResultButton('SKIP', AppColors.skip,
-                      state.submitting ? null : () => onSubmit('SKIP'))),
-              const SizedBox(width: 10),
-              Expanded(
-                  flex: 12,
-                  child: _ResultButton('PASS', AppColors.pass,
-                      state.submitting ? null : () => onSubmit('PASS'))),
-            ],
-          ),
+          child: answered != null
+              ? Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        height: AppDimens.resultButtonHeight,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: _resultColor(answered).withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Text('Đã trả lời: $answered',
+                            style: TextStyle(
+                                fontWeight: FontWeight.w800,
+                                color: _resultColor(answered))),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: accent,
+                        minimumSize:
+                            const Size(90, AppDimens.resultButtonHeight),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16)),
+                      ),
+                      onPressed: onForward,
+                      child: const Text('Tiếp →',
+                          style: TextStyle(fontWeight: FontWeight.w800)),
+                    ),
+                  ],
+                )
+              : Row(
+                  children: [
+                    Expanded(
+                        flex: 12,
+                        child: _ResultButton('FAIL', AppColors.fail,
+                            state.submitting ? null : () => onSubmit('FAIL'))),
+                    const SizedBox(width: 10),
+                    Expanded(
+                        flex: 8,
+                        child: _ResultButton('SKIP', AppColors.skip,
+                            state.submitting ? null : () => onSubmit('SKIP'))),
+                    const SizedBox(width: 10),
+                    Expanded(
+                        flex: 12,
+                        child: _ResultButton('PASS', AppColors.pass,
+                            state.submitting ? null : () => onSubmit('PASS'))),
+                  ],
+                ),
         ),
       ],
     );
   }
+
+  static Color _resultColor(String result) => switch (result) {
+        'PASS' => AppColors.pass,
+        'FAIL' => AppColors.fail,
+        _ => AppColors.skip,
+      };
 }
 
 class _CompletionView extends StatelessWidget {
@@ -263,6 +398,7 @@ class _CompletionView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final empty = session.totalItems == 0;
+    final remaining = session.totalItems - session.completedItems;
     return Padding(
       padding: const EdgeInsets.all(32),
       child: Column(
@@ -277,7 +413,9 @@ class _CompletionView extends StatelessWidget {
               style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800)),
           if (!empty) ...[
             const SizedBox(height: 6),
-            Text('${session.totalItems} thẻ',
+            Text(
+                '${session.completedItems}/${session.totalItems} thẻ'
+                '${remaining > 0 ? ' · $remaining thẻ chưa làm sẽ quay lại sau' : ''}',
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 14, color: AppColors.textSub)),
             const SizedBox(height: 24),

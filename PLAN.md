@@ -182,3 +182,35 @@ code/
 - **Backend**: pytest + httpx AsyncClient; test bắt buộc: review algorithm (PASS/FAIL/SKIP mọi nhánh), session generation ratios, idempotency, cross-user isolation, refresh rotation + reuse detection.
 - **Mobile**: unit test cho state notifiers; widget test StudyCard; golden test theme.
 - **Định nghĩa hoàn thành mỗi phase** = acceptance criteria §19 tương ứng + test xanh.
+
+
+---
+
+## 8. Roadmap cải tiến (học từ các app khác — 02/07/2026)
+
+Nguồn tham chiếu pattern: Anki (SRS thuần), Duolingo (gamification/habit), Memrise (đa dạng bài tập), Pimsleur (audio-first), Clozemaster (cloze), Pleco (tra cứu tiếng Trung).
+
+### Ưu tiên cao — tác động lớn, vừa sức
+| # | Cải tiến | Học từ | Ghi chú triển khai |
+|---|---|---|---|
+| 1 | **Undo thẻ vừa trả lời** | Anki | Bấm nhầm PASS/FAIL rất phổ biến. Backend: endpoint revert dùng old_* trong review_logs (chỉ cho thẻ gần nhất, trong phiên đang mở) |
+| 2 | **4 mức trả lời: Quên / Khó / Nhớ / Dễ** thay PASS/FAIL | Anki | Interval scale theo mức: Khó ×0.7, Dễ ×1.5. Giữ SKIP. Schema: last_result mở rộng |
+| 3 | **Ease factor per item (SM-2 rút gọn)** | Anki | Thay interval cố định [1,3,7] bằng interval × ease; ease tăng/giảm theo kết quả. Cột mới: ease numeric default 2.5 |
+| 4 | **Chiều học đảo**: Việt→từ, nghe TTS→đoán từ | Anki, Pimsleur | Setting per language: direction mix. Card hiện nghĩa trước, giấu từ |
+| 5 | **Push notification nhắc học + bảo vệ streak** | Duolingo | Phase 5 đã có kế hoạch; local notification là đủ cho MVP |
+
+### Ưu tiên vừa
+| # | Cải tiến | Học từ | Ghi chú |
+|---|---|---|---|
+| 6 | Trắc nghiệm 4 đáp án xen kẽ flashcard | Duolingo, Memrise | Sinh 3 đáp án nhiễu từ items cùng topic/difficulty — không cần AI |
+| 7 | Cloze câu ví dụ (đục lỗ từ đang học trong example) | Clozemaster | Dữ liệu example sẵn có, chỉ cần render + input |
+| 8 | Heatmap lịch học (kiểu GitHub) trong Dashboard | Anki | Đã có API /dashboard/history — chỉ cần UI |
+| 9 | Thêm/sửa từ ngay trong app (ItemForm) | Pleco | Spec đã có ItemFormScreen — Phase 4 |
+| 10 | Âm báo đúng/sai nhẹ + haptic mạnh hơn khi FAIL | Duolingo | package audioplayers, file âm ngắn |
+
+### Cân nhắc sau (chi phí cao / cần cân nhắc)
+- **Gõ lại từ (typing test)** — Memrise: hiệu quả cao nhưng gõ tiếng Trung cần IME, trải nghiệm mobile kém → chỉ làm cho English trước.
+- **Leaderboard/XP** — Duolingo: với 1–10 người dùng thân quen có thể vui, nhưng dễ thành áp lực; để rất sau.
+- **AI sinh câu ví dụ mới** — tránh theo spec §16 (không host model trên VPS nhỏ); nếu làm thì gọi API ngoài, sinh offline khi import.
+
+Nguyên tắc chọn: app này là công cụ SRS cá nhân — ưu tiên các cải tiến làm **thuật toán nhớ tốt hơn** (1–4) trước các cải tiến làm **app vui hơn** (5–10).

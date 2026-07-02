@@ -5,6 +5,10 @@ import 'app/router.dart';
 import 'app/theme.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  // Fire-and-forget: CJK font is usually ready before the first study card;
+  // if not, Flutter re-renders automatically when it finishes loading.
+  preloadCjkFonts();
   runApp(const ProviderScope(child: VocabApp()));
 }
 
