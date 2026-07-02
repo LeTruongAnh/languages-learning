@@ -321,6 +321,7 @@ Phân phối cho 1–10 người dùng nội bộ: gửi file APK trực tiếp 
 | App báo "Không kết nối được máy chủ" trên emulator | Backend chưa chạy `--host 0.0.0.0`, hoặc sai base URL (emulator phải dùng `10.0.2.2`) |
 | Thiết bị thật không gọi được API dev | Khác Wi-Fi, hoặc Windows Firewall chặn cổng 8000, hoặc thiếu `usesCleartextTraffic` |
 | 401 liên tục sau một thời gian | Refresh token hết hạn (30 ngày) → đăng nhập lại là đúng thiết kế |
+| `alembic` báo `InvalidPasswordError` khi dev local | (1) PostgreSQL native Windows đang chiếm cổng 5432 → đổi Docker sang `-p 5433:5432` + sửa `.env`; (2) password `.env` khác lệnh `docker run`; (3) volume cũ giữ password cũ → `docker volume rm vocab_pgdata` rồi tạo lại |
 | `docker compose up` lỗi database | `POSTGRES_PASSWORD` trong `.env` không khớp `DATABASE_URL`; hoặc volume cũ giữ password cũ → `docker volume rm vocab-backend_pgdata` (mất data!) |
 | Caddy không cấp được TLS | DNS chưa trỏ đúng IP, hoặc cổng 80/443 bị firewall chặn |
 | TTS không đọc tiếng Trung | Cài Google TTS + tải voice data zh-CN trong cài đặt Android |

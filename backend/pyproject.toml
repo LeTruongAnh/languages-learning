@@ -2,7 +2,7 @@
 name = "vocab-api"
 version = "0.1.0"
 description = "Backend API for mobile vocabulary learning app"
-requires-python = ">=3.12"
+requires-python = ">=3.10"
 dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",
@@ -11,6 +11,8 @@ dependencies = [
     "alembic>=1.13",
     "pydantic>=2.7",
     "pydantic-settings>=2.3",
+    "email-validator>=2.1",
+    "tzdata>=2024.1",
     "argon2-cffi>=23.1",
     "pyjwt>=2.8",
     "slowapi>=0.1.9",
@@ -25,6 +27,14 @@ dev = [
     "aiosqlite>=0.20",
     "ruff>=0.4",
 ]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+# Only the "app" package is distributable; alembic/ and tests/ stay out.
+[tool.setuptools.packages.find]
+include = ["app*"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
