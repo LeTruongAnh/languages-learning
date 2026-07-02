@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vocab App — Mobile UI Mockup</title>
+<style>
+  :root {
+    --bg: #F7F8FA;
+    --surface: #FFFFFF;
+    --text: #1A1D26;
+    --text-sub: #6B7280;
+    --border: #E5E7EB;
+    --zh: #E0533D;
+    --zh-soft: #FDECE8;
+    --en: #2563EB;
+    --en-soft: #E8EFFD;
+    --hard: #F59E0B;
+    --hard-soft: #FEF3E2;
+    --review: #8B5CF6;
+    --review-soft: #F1EAFE;
+    --pass: #16A34A;
+    --fail: #DC2626;
+    --skip: #9CA3AF;
+    --radius: 16px;
+    --shadow: 0 1px 3px rgba(0,0,0,.06), 0 4px 12px rgba(0,0,0,.04);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif; }
+  body { background:#EDEEF2; padding:24px; }
+  h1.page-title { text-align:center; font-size:20px; color:var(--text); margin-bottom:4px; }
+  p.page-sub { text-align:center; font-size:13px; color:var(--text-sub); margin-bottom:20px; }
+
+  /* Screen switcher */
+  .switcher { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin-bottom:24px; }
+  .switcher button {
+    border:1px solid var(--border); background:var(--surface); color:var(--text-sub);
+    padding:8px 14px; border-radius:99px; font-size:13px; font-weight:600; cursor:pointer;
+  }
+  .switcher button.active { background:var(--text); color:#fff; border-color:var(--text); }
+
+  /* Phone frame */
+  .stage { display:flex; justify-content:center; }
+  .phone {
+    width:390px; height:812px; background:var(--bg); border-radius:44px;
+    border:10px solid #1A1D26; overflow:hidden; position:relative;
+    box-shadow: 0 24px 60px rgba(0,0,0,.25);
+  }
+  .statusbar { height:44px; display:flex; align-items:center; justify-content:space-between; padding:0 24px; font-size:13px; font-weight:600; color:var(--text); }
+  .screen { display:none; height:calc(100% - 44px); flex-direction:column; }
+  .screen.active { display:flex; }
+  .scroll { flex:1; overflow-y:auto; padding:0 20px 20px; }
+  .scroll::-webkit-scrollbar { display:none; }
+
+  /* Bottom nav */
+  .bottomnav {
+    height:76px; background:var(--surface); border-top:1px solid var(--border);
+    display:flex; padding-bottom:14px;
+  }
+  .bottomnav .nav-item { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; font-size:11px; color:var(--text-sub); cursor:pointer; }
+  .bottomnav .nav-item.on { color:var(--text); font-weight:700; }
+  .nav-ic { font-size:20px; line-height:1; }
+
+  /* Cards */
+  .card { background:var(--surface); border-radius:var(--radius); box-shadow:var(--shadow); padding:18px; margin-bottom:14px; }
+  .greeting { font-size:24px; font-weight:800; color:var(--text); margin:12px 0 2px; }
+  .greeting-sub { font-size:14px; color:var(--text-sub); margin-bottom:16px; }
+
+  .today-card { display:flex; align-items:center; gap:16px; }
+  .ring { width:64px; height:64px; border-radius:50%;
+    background:conic-gradient(var(--pass) 0 45%, #E5E7EB 45% 100%);
+    display:flex; align-items:center; justify-content:center; }
+  .ring-inner { width:48px; height:48px; border-radius:50%; background:var(--surface); display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; }
+
+  .lang-card { border-left:5px solid var(--zh); }
+  .lang-card.en { border-left-color:var(--en); }
+  .lang-card.hard { border-left-color:var(--hard); }
+  .lang-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+  .lang-name { font-size:18px; font-weight:800; }
+  .chip { font-size:11px; font-weight:700; padding:3px 10px; border-radius:99px; }
+  .chip.zh { background:var(--zh-soft); color:var(--zh); }
+  .chip.en { background:var(--en-soft); color:var(--en); }
+  .chip.hard { background:var(--hard-soft); color:var(--hard); }
+  .chip.review { background:var(--review-soft); color:var(--review); }
+  .chip.new { background:#E7F6EC; color:var(--pass); }
+  .lang-stats { display:flex; gap:14px; font-size:13px; color:var(--text-sub); margin-bottom:12px; }
+  .lang-stats b { color:var(--text); }
+  .pbar { height:6px; background:#EDEEF2; border-radius:99px; overflow:hidden; margin-bottom:14px; }
+  .pbar > div { height:100%; border-radius:99px; }
+  .btn {
+    display:block; width:100%; border:none; border-radius:14px; padding:14px;
+    font-size:15px; font-weight:700; cursor:pointer; text-align:center; min-height:48px;
+  }
+  .btn.zh { background:var(--zh); color:#fff; }
+  .btn.en { background:var(--en); color:#fff; }
+  .btn.hardc { background:var(--hard); color:#fff; }
+  .btn.ghost { background:transparent; color:var(--text-sub); border:1px solid var(--border); }
+
+  /* Study screen */
+  .study-top { padding:10px 20px 0; }
+  .study-meta { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .study-close { font-size:20px; color:var(--text-sub); cursor:pointer; }
+  .study-count { font-size:14px; font-weight:700; color:var(--text-sub); }
+  .study-pbar { height:4px; background:#EDEEF2; border-radius:99px; }
+  .study-pbar > div { height:100%; width:25%; background:var(--zh); border-radius:99px; }
+  .study-body { flex:1; display:flex; flex-direction:column; padding:16px 20px 0; overflow-y:auto; }
+  .study-badges { display:flex; gap:8px; justify-content:center; margin-bottom:20px; }
+  .word-area { text-align:center; }
+  .word-main { font-size:48px; font-weight:800; color:var(--text); line-height:1.2; }
+  .word-pron { font-size:20px; color:var(--text-sub); margin-top:6px; }
+  .tts-btn {
+    margin:18px auto 0; width:52px; height:52px; border-radius:50%; border:none;
+    background:var(--zh-soft); color:var(--zh); font-size:22px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .meaning-toggle {
+    margin:22px auto 0; display:block; background:var(--surface); border:1px dashed var(--border);
+    color:var(--text-sub); border-radius:14px; padding:14px 28px; font-size:14px; font-weight:600; cursor:pointer; min-height:48px;
+  }
+  .meaning { display:none; margin-top:20px; background:var(--surface); border-radius:var(--radius); box-shadow:var(--shadow); padding:18px; text-align:left; }
+  .meaning.show { display:block; }
+  .meaning .vn { font-size:20px; font-weight:700; margin-bottom:10px; }
+  .meaning .ex { font-size:15px; color:var(--text); margin-bottom:4px; }
+  .meaning .ex-vn { font-size:14px; color:var(--text-sub); }
+  .result-bar { display:flex; gap:10px; padding:14px 20px 30px; background:var(--bg); }
+  .rbtn { flex:1; border:none; border-radius:16px; min-height:56px; font-size:15px; font-weight:800; cursor:pointer; color:#fff; }
+  .rbtn.fail { background:var(--fail); flex:1.2; }
+  .rbtn.skip { background:var(--skip); flex:.8; }
+  .rbtn.pass { background:var(--pass); flex:1.2; }
+
+  /* Complete screen */
+  .complete-wrap { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:0 32px; text-align:center; }
+  .big-emoji { font-size:64px; margin-bottom:12px; }
+  .complete-title { font-size:26px; font-weight:800; margin-bottom:6px; }
+  .complete-sub { font-size:14px; color:var(--text-sub); margin-bottom:24px; }
+  .stat-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; width:100%; margin-bottom:24px; }
+  .stat-box { background:var(--surface); border-radius:var(--radius); box-shadow:var(--shadow); padding:14px 8px; }
+  .stat-num { font-size:24px; font-weight:800; }
+  .stat-lbl { font-size:11px; color:var(--text-sub); font-weight:600; text-transform:uppercase; letter-spacing:.4px; }
+
+  /* Dashboard */
+  .dash-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:14px; }
+  .dash-box { background:var(--surface); border-radius:var(--radius); box-shadow:var(--shadow); padding:16px; }
+  .dash-num { font-size:26px; font-weight:800; }
+  .dash-lbl { font-size:12px; color:var(--text-sub); font-weight:600; margin-top:2px; }
+  .section-title { font-size:15px; font-weight:800; margin:18px 0 10px; }
+  .lang-row { display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid var(--border); }
+  .lang-row:last-child { border-bottom:none; }
+  .dot { width:10px; height:10px; border-radius:50%; }
+  .lang-row .grow { flex:1; }
+  .lang-row .nm { font-size:14px; font-weight:700; }
+  .lang-row .st { font-size:12px; color:var(--text-sub); }
+  .lang-row .val { font-size:14px; font-weight:800; }
+
+  /* Settings */
+  .set-row { display:flex; align-items:center; justify-content:space-between; padding:15px 0; border-bottom:1px solid var(--border); min-height:48px; }
+  .set-row:last-child { border-bottom:none; }
+  .set-lbl { font-size:14.5px; font-weight:600; }
+  .set-sub { font-size:12px; color:var(--text-sub); margin-top:2px; }
+  .toggle { width:48px; height:28px; border-radius:99px; background:var(--pass); position:relative; cursor:pointer; flex-shrink:0; }
+  .toggle.off { background:#D1D5DB; }
+  .toggle::after { content:''; position:absolute; top:3px; right:3px; width:22px; height:22px; border-radius:50%; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.2); }
+  .toggle.off::after { right:auto; left:3px; }
+  .set-val { font-size:14px; color:var(--text-sub); font-weight:600; }
+
+  /* Hard items */
+  .hard-item { display:flex; align-items:center; gap:12px; }
+  .hard-word { font-size:17px; font-weight:800; }
+  .hard-sub { font-size:12.5px; color:var(--text-sub); margin-top:2px; }
+
+  /* Login */
+  .login-wrap { flex:1; display:flex; flex-direction:column; justify-content:center; padding:0 28px; }
+  .logo { font-size:40px; text-align:center; margin-bottom:8px; }
+  .login-title { font-size:24px; font-weight:800; text-align:center; margin-bottom:4px; }
+  .login-sub { font-size:14px; color:var(--text-sub); text-align:center; margin-bottom:28px; }
+  .input { width:100%; border:1px solid var(--border); background:var(--surface); border-radius:14px; padding:15px 16px; font-size:15px; margin-bottom:12px; min-height:52px; }
+  .input:focus { outline:2px solid var(--en); border-color:transparent; }
+
+  .annotation { max-width:390px; margin:16px auto 0; font-size:12.5px; color:#6B7280; line-height:1.6; background:#fff; border-radius:12px; padding:14px 16px; border:1px solid var(--border); }
+  .annotation b { color:var(--text); }
+</style>
+</head>
+<body>
+
+<h1 class="page-title">Vocab App — Mobile UI Mockup</h1>
+<p class="page-sub">Design system: nền #F7F8FA · radius 16 · tap target ≥48dp · accent theo ngôn ngữ</p>
+
+<div class="switcher" id="switcher">
+  <button data-s="login">Login</button>
+  <button data-s="home" class="active">Home</button>
+  <button data-s="study">Study Card</button>
+  <button data-s="complete">Complete</button>
+  <button data-s="dashboard">Dashboard</button>
+  <button data-s="hard">Hard Items</button>
+  <button data-s="settings">Settings</button>
+</div>
+
+<div class="stage">
+<div class="phone">
+  <div class="statusbar"><span>9:41</span><span>📶 🔋</span></div>
+
+  <!-- LOGIN -->
+  <div class="screen" id="s-login">
+    <div class="login-wrap">
+      <div class="logo">📚</div>
+      <div class="login-title">Vocab</div>
+      <div class="login-sub">Học từ vựng mỗi ngày, theo cách của bạn</div>
+      <input class="input" type="email" placeholder="Email" value="phong@example.com">
+      <input class="input" type="password" placeholder="Mật khẩu" value="••••••••">
+      <button class="btn en" style="margin-top:6px">Đăng nhập</button>
+      <button class="btn ghost" style="margin-top:10px">Tạo tài khoản</button>
+    </div>
+  </div>
+
+  <!-- HOME -->
+  <div class="screen active" id="s-home">
+    <div class="scroll">
+      <div class="greeting">Chào Phong 👋</div>
+      <div class="greeting-sub">Thứ Năm, 2 tháng 7</div>
+
+      <div class="card today-card">
+        <div class="ring"><div class="ring-inner">45%</div></div>
+        <div>
+          <div style="font-size:15px;font-weight:800">Hôm nay: 18 / 40 thẻ</div>
+          <div style="font-size:13px;color:var(--text-sub);margin-top:2px">🔥 Chuỗi 6 ngày · Cố lên!</div>
+        </div>
+      </div>
+
+      <div class="card lang-card">
+        <div class="lang-head">
+          <span class="lang-name">🇨🇳 Chinese</span>
+          <span class="chip zh">8/20 hôm nay</span>
+        </div>
+        <div class="lang-stats">
+          <span>Due <b>12</b></span><span>New <b>8</b></span>
+          <span>Vocab <b>14</b></span><span>Câu <b>6</b></span>
+        </div>
+        <div class="pbar"><div style="width:40%;background:var(--zh)"></div></div>
+        <button class="btn zh" onclick="go('study')">Tiếp tục học</button>
+      </div>
+
+      <div class="card lang-card en">
+        <div class="lang-head">
+          <span class="lang-name">🇬🇧 English</span>
+          <span class="chip en">10/20 hôm nay</span>
+        </div>
+        <div class="lang-stats">
+          <span>Due <b>10</b></span><span>New <b>10</b></span>
+          <span>Vocab <b>15</b></span><span>Câu <b>5</b></span>
+        </div>
+        <div class="pbar"><div style="width:50%;background:var(--en)"></div></div>
+        <button class="btn en" onclick="go('study')">Tiếp tục học</button>
+      </div>
+
+      <div class="card lang-card hard">
+        <div class="lang-head">
+          <span class="lang-name">🔥 Hard Items</span>
+          <span class="chip hard">9 mục khó</span>
+        </div>
+        <div class="lang-stats"><span>Very Hard <b>3</b></span><span>Hard <b>6</b></span></div>
+        <button class="btn hardc" onclick="go('hard')">Ôn mục khó</button>
+      </div>
+    </div>
+    <div class="bottomnav">
+      <div class="nav-item on"><span class="nav-ic">🏠</span>Home</div>
+      <div class="nav-item" onclick="go('dashboard')"><span class="nav-ic">📊</span>Dashboard</div>
+      <div class="nav-item" onclick="go('settings')"><span class="nav-ic">⚙️</span>Settings</div>
+    </div>
+  </div>
+
+  <!-- STUDY -->
+  <div class="screen" id="s-study">
+    <div class="study-top">
+      <div class="study-meta">
+        <span class="study-close" onclick="go('home')">✕</span>
+        <span style="font-size:14px;font-weight:800;color:var(--zh)">Chinese</span>
+        <span class="study-count">5 / 20</span>
+      </div>
+      <div class="study-pbar"><div></div></div>
+    </div>
+    <div class="study-body">
+      <div class="study-badges">
+        <span class="chip zh">Vocabulary</span>
+        <span class="chip review">Review · lần 2</span>
+        <span class="chip hard">Hard</span>
+      </div>
+      <div class="word-area">
+        <div class="word-main">你好</div>
+        <div class="word-pron">nǐ hǎo</div>
+        <button class="tts-btn" title="Đọc (TTS zh-CN)">🔊</button>
+      </div>
+      <button class="meaning-toggle" id="mtoggle" onclick="toggleMeaning()">👁 Hiện nghĩa</button>
+      <div class="meaning" id="meaning">
+        <div class="vn">Xin chào</div>
+        <div class="ex">你好，很高兴认识你。</div>
+        <div class="ex-vn">Xin chào, rất vui được gặp bạn.</div>
+      </div>
+    </div>
+    <div class="result-bar">
+      <button class="rbtn fail" onclick="go('complete')">FAIL</button>
+      <button class="rbtn skip" onclick="go('complete')">SKIP</button>
+      <button class="rbtn pass" onclick="go('complete')">PASS</button>
+    </div>
+  </div>
+
+  <!-- COMPLETE -->
+  <div class="screen" id="s-complete">
+    <div class="complete-wrap">
+      <div class="big-emoji">🎉</div>
+      <div class="complete-title">Hoàn thành!</div>
+      <div class="complete-sub">Phiên Chinese hôm nay · 20 thẻ · 12 phút</div>
+      <div class="stat-grid">
+        <div class="stat-box"><div class="stat-num" style="color:var(--pass)">15</div><div class="stat-lbl">Pass</div></div>
+        <div class="stat-box"><div class="stat-num" style="color:var(--fail)">3</div><div class="stat-lbl">Fail</div></div>
+        <div class="stat-box"><div class="stat-num" style="color:var(--skip)">2</div><div class="stat-lbl">Skip</div></div>
+      </div>
+      <button class="btn zh" style="margin-bottom:10px" onclick="go('study')">Học thêm phiên phụ</button>
+      <button class="btn ghost" onclick="go('home')">Về Home</button>
+    </div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div class="screen" id="s-dashboard">
+    <div class="scroll">
+      <div class="greeting" style="font-size:22px">Dashboard</div>
+      <div class="greeting-sub">Hôm nay, 2/7/2026</div>
+      <div class="dash-grid">
+        <div class="dash-box"><div class="dash-num">38</div><div class="dash-lbl">Đã học hôm nay</div></div>
+        <div class="dash-box"><div class="dash-num" style="color:var(--pass)">82%</div><div class="dash-lbl">Tỷ lệ Pass</div></div>
+        <div class="dash-box"><div class="dash-num">🔥 6</div><div class="dash-lbl">Chuỗi ngày</div></div>
+        <div class="dash-box"><div class="dash-num" style="color:var(--hard)">9</div><div class="dash-lbl">Mục khó</div></div>
+      </div>
+      <div class="card">
+        <div style="display:flex;justify-content:space-around;text-align:center">
+          <div><div class="stat-num" style="color:var(--pass)">29</div><div class="stat-lbl">Pass</div></div>
+          <div><div class="stat-num" style="color:var(--fail)">6</div><div class="stat-lbl">Fail</div></div>
+          <div><div class="stat-num" style="color:var(--skip)">3</div><div class="stat-lbl">Skip</div></div>
+          <div><div class="stat-num">22</div><div class="stat-lbl">Due còn lại</div></div>
+        </div>
+      </div>
+      <div class="section-title">Theo ngôn ngữ</div>
+      <div class="card">
+        <div class="lang-row">
+          <div class="dot" style="background:var(--zh)"></div>
+          <div class="grow"><div class="nm">Chinese</div><div class="st">Pass 85% · Due 12</div></div>
+          <div class="val">20 thẻ</div>
+        </div>
+        <div class="lang-row">
+          <div class="dot" style="background:var(--en)"></div>
+          <div class="grow"><div class="nm">English</div><div class="st">Pass 78% · Due 10</div></div>
+          <div class="val">18 thẻ</div>
+        </div>
+      </div>
+    </div>
+    <div class="bottomnav">
+      <div class="nav-item" onclick="go('home')"><span class="nav-ic">🏠</span>Home</div>
+      <div class="nav-item on"><span class="nav-ic">📊</span>Dashboard</div>
+      <div class="nav-item" onclick="go('settings')"><span class="nav-ic">⚙️</span>Settings</div>
+    </div>
+  </div>
+
+  <!-- HARD ITEMS -->
+  <div class="screen" id="s-hard">
+    <div class="scroll">
+      <div class="greeting" style="font-size:22px">🔥 Hard Items</div>
+      <div class="greeting-sub">9 mục cần ôn thêm</div>
+      <button class="btn hardc" style="margin-bottom:16px" onclick="go('study')">Học ngay 9 mục khó</button>
+      <div class="card hard-item">
+        <div class="grow" style="flex:1">
+          <div class="hard-word">乱七八糟 <span style="font-weight:400;color:var(--text-sub);font-size:13px">luàn qī bā zāo</span></div>
+          <div class="hard-sub">Lộn xộn, bừa bãi · Sai 4 lần</div>
+        </div>
+        <span class="chip hard">Very Hard</span>
+      </div>
+      <div class="card hard-item">
+        <div class="grow" style="flex:1">
+          <div class="hard-word">procrastinate</div>
+          <div class="hard-sub">Trì hoãn · Sai 3 lần</div>
+        </div>
+        <span class="chip hard">Very Hard</span>
+      </div>
+      <div class="card hard-item">
+        <div class="grow" style="flex:1">
+          <div class="hard-word">差不多 <span style="font-weight:400;color:var(--text-sub);font-size:13px">chà bu duō</span></div>
+          <div class="hard-sub">Gần như, xấp xỉ · Sai 2 lần</div>
+        </div>
+        <span class="chip review">Hard</span>
+      </div>
+      <button class="btn ghost" onclick="go('home')">← Về Home</button>
+    </div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="screen" id="s-settings">
+    <div class="scroll">
+      <div class="greeting" style="font-size:22px">Settings</div>
+      <div class="greeting-sub">phong@example.com</div>
+
+      <div class="section-title">Phát âm (TTS)</div>
+      <div class="card">
+        <div class="set-row">
+          <div><div class="set-lbl">Tự đọc khi mở thẻ</div><div class="set-sub">autoSpeakOnCardOpen</div></div>
+          <div class="toggle"></div>
+        </div>
+        <div class="set-row">
+          <div><div class="set-lbl">Đọc cả câu ví dụ</div><div class="set-sub">speakExample</div></div>
+          <div class="toggle off"></div>
+        </div>
+        <div class="set-row">
+          <div class="set-lbl">Tốc độ đọc</div>
+          <div class="set-val">0.9×</div>
+        </div>
+      </div>
+
+      <div class="section-title">Chinese 🇨🇳</div>
+      <div class="card">
+        <div class="set-row"><div class="set-lbl">Giới hạn mỗi ngày</div><div class="set-val">20 thẻ ›</div></div>
+        <div class="set-row"><div class="set-lbl">Tỷ lệ Vocab / Câu</div><div class="set-val">70 / 30 ›</div></div>
+        <div class="set-row"><div class="set-lbl">Tỷ lệ New / Review</div><div class="set-val">60 / 40 ›</div></div>
+        <div class="set-row"><div class="set-lbl">Chu kỳ ôn tập</div><div class="set-val">1, 3, 7 ngày ›</div></div>
+      </div>
+
+      <div class="section-title">English 🇬🇧</div>
+      <div class="card">
+        <div class="set-row"><div class="set-lbl">Giới hạn mỗi ngày</div><div class="set-val">20 thẻ ›</div></div>
+        <div class="set-row"><div class="set-lbl">Tỷ lệ Vocab / Câu</div><div class="set-val">75 / 25 ›</div></div>
+      </div>
+
+      <div class="section-title">Tài khoản</div>
+      <div class="card">
+        <div class="set-row"><div class="set-lbl">Múi giờ</div><div class="set-val">Asia/Ho_Chi_Minh</div></div>
+        <div class="set-row"><div class="set-lbl" style="color:var(--fail)">Đăng xuất</div></div>
+      </div>
+    </div>
+    <div class="bottomnav">
+      <div class="nav-item" onclick="go('home')"><span class="nav-ic">🏠</span>Home</div>
+      <div class="nav-item" onclick="go('dashboard')"><span class="nav-ic">📊</span>Dashboard</div>
+      <div class="nav-item on"><span class="nav-ic">⚙️</span>Settings</div>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<div class="annotation" id="note-home">
+  <b>Home:</b> mỗi ngôn ngữ 1 card (spec §5.4) với due/new/vocab/câu + progress. 1 hành động chính = nút Start/Continue. Hard Items là card riêng màu cam.
+</div>
+
+<script>
+const notes = {
+  login: "<b>Login:</b> tối giản — email + mật khẩu. Token lưu secure storage, tự refresh. Lỗi đăng nhập hiện thông báo chung, không lộ email tồn tại.",
+  home: "<b>Home:</b> mỗi ngôn ngữ 1 card (spec §5.4) với due/new/vocab/câu + progress. 1 hành động chính = nút Start/Continue. Hard Items là card riêng màu cam.",
+  study: "<b>Study:</b> màn quan trọng nhất. Chữ chính 48px, pinyin dưới, nghĩa ẩn mặc định (active recall). FAIL trái / PASS phải cao 56dp cố định đáy — học được bằng 1 tay. Bấm nút để xem demo chuyển màn.",
+  complete: "<b>Complete:</b> tổng kết Pass/Fail/Skip, gợi ý phiên phụ (LANGUAGE_EXTRA) hoặc về Home.",
+  dashboard: "<b>Dashboard:</b> chỉ số dạng card đơn giản theo spec §5.7 — không chart phức tạp ở MVP. Breakdown theo ngôn ngữ ở dưới.",
+  hard: "<b>Hard Items:</b> danh sách mục sai ≥2 lần, nút tạo HARD_ITEMS session ngay trên đầu.",
+  settings: "<b>Settings:</b> TTS chung + cài đặt riêng từng ngôn ngữ (daily limit, ratios, intervals) — map thẳng vào bảng language_settings."
+};
+function go(s) {
+  document.querySelectorAll('.screen').forEach(e => e.classList.remove('active'));
+  document.getElementById('s-' + s).classList.add('active');
+  document.querySelectorAll('#switcher button').forEach(b => b.classList.toggle('active', b.dataset.s === s));
+  document.getElementById('note-home').innerHTML = notes[s];
+  if (s !== 'study') { document.getElementById('meaning').classList.remove('show'); document.getElementById('mtoggle').textContent = '👁 Hiện nghĩa'; }
+}
+document.querySelectorAll('#switcher button').forEach(b => b.onclick = () => go(b.dataset.s));
+function toggleMeaning() {
+  const m = document.getElementById('meaning'), t = document.getElementById('mtoggle');
+  m.classList.toggle('show');
+  t.textContent = m.classList.contains('show') ? '🙈 Ẩn nghĩa' : '👁 Hiện nghĩa';
+}
+</script>
+</body>
+</html>

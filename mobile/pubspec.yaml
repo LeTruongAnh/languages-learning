@@ -1,0 +1,30 @@
+name: vocab_app
+description: Mobile vocabulary learning app (Chinese, English, ...)
+publish_to: "none"
+version: 0.1.0
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # State management (spec §11.2)
+  flutter_riverpod: ^2.5.1
+  # Navigation
+  go_router: ^14.2.0
+  # HTTP + auth interceptor
+  dio: ^5.4.3
+  # Secure token storage (Keychain/Keystore — PLAN.md §3.4)
+  flutter_secure_storage: ^9.2.2
+  # TTS (spec §11.6)
+  flutter_tts: ^4.0.2
+  intl: ^0.19.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
