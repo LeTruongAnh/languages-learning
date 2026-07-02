@@ -37,6 +37,8 @@ Base URL mặc định `http://10.0.2.2:8000/api` (Android emulator → localhos
 | Nhắc học hằng ngày (local notification, không hỗ trợ web) | ✅ |
 | Settings nâng cao per language: bộ lọc difficulty/topic/frequency/situation, times limit, intervals, reset on fail, include passed, sort mode | ✅ |
 | Ôn tập tuần: chọn ngày + số thẻ, nút hiện trên Home đúng ngày, ưu tiên thẻ sai nhiều | ✅ |
+| Nút chấm chỉ hiện sau khi lật đáp án (chuẩn Anki), nút Hiện nghĩa full-width | ✅ |
+| Layout desktop web: nội dung giới hạn 520px, không loãng | ✅ |
 
 ## Cấu trúc
 

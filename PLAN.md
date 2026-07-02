@@ -10,6 +10,8 @@ Stack đã chốt: **Flutter + FastAPI + PostgreSQL + Docker Compose**
 > - ✅ Phase 4 (backend) — Import CSV, export CSV/JSON backup
 > - 🔲 Phase 4 (web companion React/Vite) + Phase 5 (offline queue, charts, notifications) — bước tiếp theo
 >
+> - ✅ Nâng cấp sau MVP: SRS v2 (4 mức + ease factor), undo, chiều học đảo, nhắc học, weekly review, settings nâng cao + bộ lọc, **TTS server (edge-tts neural)** thay TTS thiết bị
+>
 > Chi tiết: `backend/README.md`, `mobile/README.md`
 
 ---

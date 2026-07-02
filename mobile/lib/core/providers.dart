@@ -23,6 +23,7 @@ final dioProvider = Provider<Dio>((ref) => ref.watch(apiClientProvider).dio);
 
 final ttsServiceProvider = Provider<TtsService>((ref) => TtsService(
       baseUrl: kApiBaseUrl,
+      dio: ref.watch(dioProvider),
       tokens: ref.watch(tokenStorageProvider),
     ));
 

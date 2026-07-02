@@ -27,7 +27,7 @@ Test suite chạy trên SQLite in-memory:
 
 ```powershell
 pytest
-# Kỳ vọng: 20 passed
+# Kỳ vọng: 34 passed
 ```
 
 Đây là bước kiểm tra nhanh nhất — nếu 20/20 pass thì logic auth, study engine, isolation đều đúng.
@@ -346,3 +346,5 @@ Phân phối cho 1–10 người dùng nội bộ: gửi file APK trực tiếp 
 | Caddy không cấp được TLS | DNS chưa trỏ đúng IP, hoặc cổng 80/443 bị firewall chặn |
 | TTS không đọc tiếng Trung | Cài Google TTS + tải voice data zh-CN trong cài đặt Android |
 | Session hôm qua vẫn hiện | Đúng thiết kế: session cũ tự chuyển EXPIRED khi tạo session ngày mới |
+| Sửa code backend nhưng hành vi không đổi / route mới không xuất hiện | Process python cũ giữ cổng 8000, uvicorn mới chết im lặng. Restart sạch: `Get-Process python* \| Stop-Process -Force` → `netstat -ano \| findstr :8000` phải trống → xóa `__pycache__` → chạy lại |
+| Loa báo lỗi "Format error" trên web | Server trả JSON lỗi thay vì mp3 — xem console Flutter dòng `TTS prefetch failed: HTTP ...` để biết nguyên nhân thật (503 = thiếu edge-tts / lỗi mạng; 404 = server chạy code cũ) |

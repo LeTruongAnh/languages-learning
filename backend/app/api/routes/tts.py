@@ -1,9 +1,12 @@
 """Audio pronunciation endpoint.
 
+Errors during generation are logged to the server console for debugging.
+
 GET /tts/{item_id} -> mp3 (generated on first request, cached forever).
 Auth: Bearer header OR ?token= (HTML audio elements can't send headers).
 """
 
+import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -16,6 +19,8 @@ from app.core.database import get_db
 from app.core.errors import NotFoundError
 from app.models import Language, StudyItem, User
 from app.services import tts_service
+
+logger = logging.getLogger("vocab.tts")
 
 router = APIRouter(prefix="/tts", tags=["tts"])
 
@@ -36,8 +41,15 @@ async def get_audio(
 
     try:
         path = await tts_service.get_or_generate(item_id, row.text, row.tts_lang)
+    except ModuleNotFoundError as exc:
+        logger.error("edge-tts chua duoc cai: pip install -e \".[dev]\"")
+        raise HTTPException(
+            status_code=503,
+            detail="edge-tts is not installed on the server (pip install -e '.[dev]')",
+        ) from exc
     except Exception as exc:  # network down / edge endpoint changed
-        raise HTTPException(status_code=503, detail="TTS generation failed") from exc
+        logger.exception("TTS generation failed for item %s", item_id)
+        raise HTTPException(status_code=503, detail=f"TTS generation failed: {exc}") from exc
 
     return FileResponse(
         path,
