@@ -267,6 +267,33 @@ async def complete_session(db, user_id, session_id) -> StudySession:
     return session
 
 
+async def completion_stats(db, user_id, session) -> dict:
+    """Emotional-completion payload: streak, record, cards graduated in this
+    session. Cheap queries - runs once per completed session."""
+    from app.services import dashboard_service
+
+    today = today_in_tz(await get_user_timezone(db, user_id))
+    streak = await dashboard_service.streak_days(db, user_id, today)
+    longest = await dashboard_service.longest_streak_days(db, user_id)
+    graduated = await db.scalar(
+        select(func.count())
+        .select_from(StudySessionItem)
+        .join(StudyItem, StudySessionItem.study_item_id == StudyItem.id)
+        .where(
+            StudySessionItem.session_id == session.id,
+            StudySessionItem.result.is_not(None),
+            StudyItem.passed.is_(True),
+        )
+    ) or 0
+    return {
+        "streak_days": streak,
+        "longest_streak": longest,
+        # Ties count as a record; >= 2 avoids a trivial day-one badge.
+        "is_new_record": streak >= 2 and streak >= longest,
+        "graduated_count": graduated,
+    }
+
+
 HARD_LEVELS = ("Hard", "Very Hard")
 HARD_SESSION_CAP = 50
 

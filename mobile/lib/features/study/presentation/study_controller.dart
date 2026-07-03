@@ -49,6 +49,7 @@ class StudyState {
     this.showPronunciation = false,
     this.submitting = false,
     this.finished = false,
+    this.completion,
   });
 
   final StudySession session;
@@ -61,6 +62,9 @@ class StudyState {
   final bool showPronunciation;
   final bool submitting;
   final bool finished;
+
+  /// Streak/record/graduated stats — set when the session completes.
+  final CompletionStats? completion;
 
   SessionItem? get viewing =>
       index < session.items.length ? session.items[index] : null;
@@ -88,6 +92,7 @@ class StudyState {
     bool? showPronunciation,
     bool? submitting,
     bool? finished,
+    CompletionStats? completion,
   }) =>
       StudyState(
         session: session ?? this.session,
@@ -100,6 +105,7 @@ class StudyState {
         showPronunciation: showPronunciation ?? this.showPronunciation,
         submitting: submitting ?? this.submitting,
         finished: finished ?? this.finished,
+        completion: completion ?? this.completion,
       );
 }
 
@@ -183,9 +189,10 @@ class StudyController extends StateNotifier<AsyncValue<StudyState>> {
       final results = {...s.localResults, current.id: grade};
       final nextIndex = s.index + 1;
       final finished = nextIndex >= updated.items.length;
+      CompletionStats? completion;
       if (finished) {
         try {
-          await _repo.completeSession(updated.id);
+          completion = await _repo.completeSession(updated.id);
         } catch (_) {}
       }
       state = AsyncValue.data(s.copyWith(
@@ -197,6 +204,7 @@ class StudyController extends StateNotifier<AsyncValue<StudyState>> {
         showPronunciation: false,
         submitting: false,
         finished: finished,
+        completion: completion,
       ));
     } catch (e) {
       state = AsyncValue.data(s.copyWith(submitting: false));
@@ -239,10 +247,12 @@ class StudyController extends StateNotifier<AsyncValue<StudyState>> {
   Future<void> endSession() async {
     final s = state.valueOrNull;
     if (s == null) return;
+    CompletionStats? completion;
     try {
-      await _repo.completeSession(s.session.id);
+      completion = await _repo.completeSession(s.session.id);
     } catch (_) {}
-    _update((st) => st.copyWith(finished: true, clearLastAnswered: true));
+    _update((st) => st.copyWith(
+        finished: true, clearLastAnswered: true, completion: completion));
   }
 }
 

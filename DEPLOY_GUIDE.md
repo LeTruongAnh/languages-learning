@@ -27,10 +27,10 @@ Test suite chạy trên SQLite in-memory:
 
 ```powershell
 pytest
-# Kỳ vọng: 34 passed
+# Kỳ vọng: 36 passed
 ```
 
-Đây là bước kiểm tra nhanh nhất — nếu 20/20 pass thì logic auth, study engine, isolation đều đúng.
+Đây là bước kiểm tra nhanh nhất — nếu 36/36 pass thì logic auth, study engine, isolation đều đúng.
 
 ### 1.4 Chạy PostgreSQL local
 
@@ -70,6 +70,13 @@ Cách nhanh nhất — reset sạch DB, tạo schema mới nhất và import 9.5
 ```
 
 Script tự đọc cổng/mật khẩu từ `.env`, tự chờ PostgreSQL, tự chạy API tạm nếu server chưa bật. Dùng lại bất cứ khi nào muốn làm sạch dữ liệu (sau khi đổi schema, seed hỏng...).
+
+**Nâng schema KHÔNG mất dữ liệu** (khi có cột mới, ví dụ ảnh minh họa `image_path`):
+
+```powershell
+alembic revision --autogenerate -m "schema change"
+alembic upgrade head
+```
 
 **Sinh audio phát âm (một lần, sau seed):** app phát mp3 sinh sẵn bằng giọng neural (edge-tts) thay vì TTS của thiết bị. Chạy:
 

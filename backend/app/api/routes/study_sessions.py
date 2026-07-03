@@ -21,9 +21,10 @@ from app.services import review_service, study_session_service
 router = APIRouter(tags=["study-sessions"])
 
 
-async def _session_out(db, session) -> SessionOut:
+async def _session_out(db, session, stats: dict | None = None) -> SessionOut:
     pairs = await study_session_service.load_session_items(db, session.id)
     return SessionOut(
+        **(stats or {}),
         id=session.id,
         language_id=session.language_id,
         session_type=session.session_type,
@@ -133,7 +134,8 @@ async def complete_session(
     db: AsyncSession = Depends(get_db),
 ):
     session = await study_session_service.complete_session(db, current_user.id, session_id)
-    return await _session_out(db, session)
+    stats = await study_session_service.completion_stats(db, current_user.id, session)
+    return await _session_out(db, session, stats)
 
 
 @router.post(

@@ -38,6 +38,7 @@ class LanguageSummary {
     required this.todayLearned,
     required this.dailyLimit,
     this.weeklyReviewDay = 'SUNDAY',
+    this.dueTomorrow = 0,
     this.accentColor,
   });
 
@@ -54,6 +55,9 @@ class LanguageSummary {
   final int dailyLimit;
   final String weeklyReviewDay;
 
+  /// Forecast: cards becoming due tomorrow.
+  final int dueTomorrow;
+
   factory LanguageSummary.fromJson(Map<String, dynamic> json) => LanguageSummary(
         languageId: json['languageId'] as String,
         code: json['code'] as String,
@@ -67,6 +71,7 @@ class LanguageSummary {
         todayLearned: json['todayLearned'] as int,
         dailyLimit: json['dailyLimit'] as int,
         weeklyReviewDay: json['weeklyReviewDay'] as String? ?? 'SUNDAY',
+        dueTomorrow: json['dueTomorrow'] as int? ?? 0,
       );
 }
 
@@ -137,6 +142,32 @@ class StudyItemModel {
         hardLevel: json['hardLevel'] as String,
         timesReview: json['timesReview'] as int,
       );
+}
+
+/// Emotional completion payload — returned only by POST .../complete.
+class CompletionStats {
+  const CompletionStats({
+    required this.streakDays,
+    required this.longestStreak,
+    required this.isNewRecord,
+    required this.graduatedCount,
+  });
+
+  final int streakDays;
+  final int longestStreak;
+  final bool isNewRecord;
+  final int graduatedCount;
+
+  static CompletionStats? fromJson(Map<String, dynamic> json) {
+    final streak = json['streakDays'] as int?;
+    if (streak == null) return null;
+    return CompletionStats(
+      streakDays: streak,
+      longestStreak: json['longestStreak'] as int? ?? streak,
+      isNewRecord: json['isNewRecord'] as bool? ?? false,
+      graduatedCount: json['graduatedCount'] as int? ?? 0,
+    );
+  }
 }
 
 class SessionItem {

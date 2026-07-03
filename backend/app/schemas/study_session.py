@@ -28,6 +28,11 @@ class SessionOut(CamelModel):
     fail_count: int
     skip_count: int
     items: list[SessionItemOut] = []
+    # Completion stats - only populated by POST .../complete.
+    streak_days: int | None = None
+    longest_streak: int | None = None
+    is_new_record: bool | None = None
+    graduated_count: int | None = None
 
 
 class ReviewRequest(CamelModel):

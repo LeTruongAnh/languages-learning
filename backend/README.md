@@ -19,7 +19,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ## Test
 
 ```bash
-pytest        # 34 tests — SQLite in-memory, không cần PostgreSQL
+pytest        # 36 tests — SQLite in-memory, không cần PostgreSQL
 ```
 
 ## Trạng thái: HOÀN CHỈNH (vượt acceptance criteria spec §19)
@@ -40,7 +40,9 @@ pytest        # 34 tests — SQLite in-memory, không cần PostgreSQL
 | Import CSV (mapping §14) + export CSV + backup JSON | ✅ |
 | User settings (timezone, TTS, nhắc học) + Language settings (direction, weekly, filters, intervals) | ✅ |
 | Rate limiting (login 5/min, register 3/min, refresh 10/min, import 5/h) | ✅ |
-| Test suite **34/34 pass** | ✅ |
+| **Due forecast** (`dueTomorrow` trong /dashboard/languages) | ✅ |
+| **Completion stats**: streak + kỷ lục + thẻ tốt nghiệp (trả về khi complete) | ✅ |
+| Test suite **36/36 pass** | ✅ |
 
 ## API chính
 

@@ -106,6 +106,39 @@ async def _streak_days(db: AsyncSession, user_id: uuid.UUID, today: date) -> int
     return streak
 
 
+async def streak_days(db: AsyncSession, user_id: uuid.UUID, today: date) -> int:
+    """Public wrapper (used by session completion stats)."""
+    return await _streak_days(db, user_id, today)
+
+
+async def longest_streak_days(db: AsyncSession, user_id: uuid.UUID) -> int:
+    """Longest historical streak, same one-day-grace rule as _streak_days.
+    Counts studied days; a single missing day inside a run is forgiven."""
+    rows = await db.scalars(
+        select(ReviewLog.study_date)
+        .where(ReviewLog.user_id == user_id, ReviewLog.study_date.is_not(None))
+        .group_by(ReviewLog.study_date)
+        .order_by(ReviewLog.study_date)
+    )
+    days = list(rows)
+    if not days:
+        return 0
+    best = run = 1
+    grace_used = False
+    for prev, d in zip(days, days[1:]):
+        gap = (d - prev).days
+        if gap == 1:
+            run += 1
+        elif gap == 2 and not grace_used:
+            run += 1
+            grace_used = True
+        else:
+            best = max(best, run)
+            run = 1
+            grace_used = False
+    return max(best, run)
+
+
 async def languages(db: AsyncSession, user_id: uuid.UUID) -> list[LanguageSummary]:
     today = today_in_tz(await get_user_timezone(db, user_id))
     langs = list(await db.scalars(
@@ -137,6 +170,10 @@ async def languages(db: AsyncSession, user_id: uuid.UUID) -> list[LanguageSummar
             StudyItem.item_type == "SENTENCE",
             StudyItem.passed.is_(False),
         )) or 0
+        due_tomorrow = await db.scalar(base.where(
+            StudyItem.passed.is_(False),
+            StudyItem.next_review_date == today + timedelta(days=1),
+        )) or 0
         today_learned = await db.scalar(
             select(func.count()).select_from(ReviewLog).where(
                 ReviewLog.user_id == user_id,
@@ -166,6 +203,7 @@ async def languages(db: AsyncSession, user_id: uuid.UUID) -> list[LanguageSummar
             today_learned=today_learned,
             daily_limit=daily_limit,
             weekly_review_day=weekly_day,
+            due_tomorrow=due_tomorrow,
         ))
     return summaries
 

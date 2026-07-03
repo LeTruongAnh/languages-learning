@@ -41,8 +41,11 @@ class StudyRepository {
     return res.data as Map<String, dynamic>;
   }
 
-  Future<void> completeSession(String sessionId) async {
-    await _dio.post('/study-sessions/$sessionId/complete');
+  /// Completes the session; the response carries emotional-completion stats
+  /// (streak, record, graduated cards).
+  Future<CompletionStats?> completeSession(String sessionId) async {
+    final res = await _dio.post('/study-sessions/$sessionId/complete');
+    return CompletionStats.fromJson(res.data as Map<String, dynamic>);
   }
 
   /// Anki-style single-step undo of the most recently answered card.

@@ -112,19 +112,31 @@ class _LanguageCard extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(lang.name,
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                Expanded(
+                  child: Text(lang.name,
+                      style:
+                          const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                ),
                 Text('${lang.todayLearned}/${lang.dailyLimit} hôm nay',
                     style: TextStyle(
                         fontSize: 12, fontWeight: FontWeight.w700, color: accent)),
               ],
             ),
             const SizedBox(height: 6),
+            // Due forecast: what's waiting today + what piles up tomorrow.
             Text(
-              'Due ${lang.dueCount} · New ${lang.newCount} · Vocab ${lang.vocabDueNew} · Câu ${lang.sentenceDueNew}',
-              style: const TextStyle(fontSize: 13, color: AppColors.textSub),
+              'Hôm nay: ${lang.dueCount} đến hạn · ${lang.newCount} mới'
+              '${lang.dueTomorrow > 0 ? '  ·  Mai: +${lang.dueTomorrow}' : ''}',
+              style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textSub),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              'Từ vựng ${lang.vocabDueNew} · Câu ${lang.sentenceDueNew}',
+              style: const TextStyle(fontSize: 12, color: AppColors.textSub),
             ),
             const SizedBox(height: 10),
             ClipRRect(

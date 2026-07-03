@@ -155,7 +155,11 @@ class _StudyScreenState extends ConsumerState<StudyScreen> {
           error: (e, _) => _StudyError(onRetry: controller.load),
           data: (state) {
             if (state.finished || state.viewing == null) {
-              return _CompletionView(session: state.session, accent: accent);
+              return _CompletionView(
+                session: state.session,
+                accent: accent,
+                stats: state.completion,
+              );
             }
             final direction =
                 resolveDirection(directionSetting, state.viewing!.item.id);
@@ -603,15 +607,21 @@ class _GradeButton extends StatelessWidget {
 }
 
 class _CompletionView extends StatelessWidget {
-  const _CompletionView({required this.session, required this.accent});
+  const _CompletionView({
+    required this.session,
+    required this.accent,
+    this.stats,
+  });
 
   final StudySession session;
   final Color accent;
+  final CompletionStats? stats;
 
   @override
   Widget build(BuildContext context) {
     final empty = session.totalItems == 0;
     final remaining = session.totalItems - session.completedItems;
+    final s = stats;
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: _kMaxContentWidth),
@@ -634,7 +644,61 @@ class _CompletionView extends StatelessWidget {
                     '${remaining > 0 ? ' · $remaining thẻ chưa làm sẽ quay lại sau' : ''}',
                     textAlign: TextAlign.center,
                     style: const TextStyle(fontSize: 14, color: AppColors.textSub)),
-                const SizedBox(height: 24),
+                // Emotional payoff: streak + record + graduations (the
+                // habit-loop "reward" — data straight from the server).
+                if (s != null && s.streakDays > 0) ...[
+                  const SizedBox(height: 18),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: accent.withOpacity(0.10),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Column(
+                      children: [
+                        Text(
+                          '🔥 Chuỗi ${s.streakDays} ngày',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              color: accent),
+                        ),
+                        if (s.isNewRecord)
+                          const Padding(
+                            padding: EdgeInsets.only(top: 2),
+                            child: Text('🏆 Kỷ lục mới của bạn!',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.hardItems)),
+                          )
+                        else if (s.longestStreak > s.streakDays)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Text('Kỷ lục: ${s.longestStreak} ngày',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                    fontSize: 12, color: AppColors.textSub)),
+                          ),
+                        if (s.graduatedCount > 0)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Text(
+                                '🎓 +${s.graduatedCount} thẻ tốt nghiệp trong phiên này',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.pass)),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 20),
                 Row(
                   children: [
                     _StatBox('${session.passCount}', 'Nhớ', AppColors.pass),
