@@ -13,7 +13,7 @@ flutter pub get
 flutter run
 
 # Thiết bị thật / production:
-flutter run --dart-define=API_BASE_URL=https://yourdomain.com/api
+flutter run --dart-define=API_BASE_URL=https://merlinle.com/api
 ```
 
 Base URL mặc định `http://10.0.2.2:8000/api` (Android emulator → localhost máy host). iOS simulator dùng `--dart-define=API_BASE_URL=http://localhost:8000/api`.

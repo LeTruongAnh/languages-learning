@@ -27,7 +27,7 @@ VPS: Ubuntu 24.04. Hai kịch bản đều được hướng dẫn: **máy riên
 Disk thực dùng: image Docker ~350MB + PG data <1GB + audio TTS ~200-300MB (9.5k mp3) → 20GB là đủ rộng. Băng thông không đáng kể (mp3 ~15KB/file, có cache client). VPS cần ra được internet (edge-tts gọi endpoint của Microsoft).
 
 - OS: Ubuntu 24.04.
-- Trỏ DNS: bản ghi `A` của `yourdomain.com` → IP VPS (Caddy cần domain để tự cấp TLS).
+- Trỏ DNS: bản ghi `A` của `merlinle.com` → IP VPS (Caddy cần domain để tự cấp TLS).
 - Nếu chọn VPS 1GB, tạo swap trước: `fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile` (+ ghi vào /etc/fstab).
 
 ### 1.2 Cài đặt ban đầu (SSH vào VPS, chạy 1 lần)
@@ -67,17 +67,17 @@ cat ~/.ssh/id_ed25519.pub
 GitHub → repo → Settings → **Deploy keys** → Add deploy key → dán khóa, KHÔNG tick write access.
 
 ```bash
-git clone git@github.com:LeTruongAnh/languages-learning.git ~/vocab
-cd ~/vocab/backend        # backend nằm trong repo; tts.tgz + vocab.sql.gz ở gốc ~/vocab/
+git clone git@github.com:LeTruongAnh/languages-learning.git ~/languages-learning
+cd ~/languages-learning/backend        # backend nằm trong repo; tts.tgz + vocab.sql.gz ở gốc ~/languages-learning/
 tar xzf ../tts.tgz -C .   # giải audio -> backend/uploads/
 ```
 
-Các mục sau dùng đường dẫn `~/vocab/backend` thay cho `~/vocab-backend`. Restore DB: `gunzip -c ../vocab.sql.gz | docker compose exec -T db psql -U vocab vocab_app` (mục 1.5c). Cập nhật phiên bản: `cd ~/vocab && git pull && cd backend && docker compose up -d --build api`.
+Các mục sau dùng đường dẫn `~/languages-learning/backend` thay cho `~/languages-learning/backend`. Restore DB: `gunzip -c ../vocab.sql.gz | docker compose exec -T db psql -U vocab vocab_app` (mục 1.5c). Cập nhật phiên bản: `cd ~/languages-learning && git pull && cd backend && docker compose up -d --build api`.
 
 ### 1.4 Cấu hình production
 
 ```bash
-cd ~/vocab-backend
+cd ~/languages-learning/backend
 cp .env.example .env
 nano .env
 ```
@@ -93,12 +93,12 @@ CORS_ORIGINS=                # để trống nếu chưa có web companion
 
 Lưu ý `DATABASE_URL` dùng host **`db`** (tên service trong docker-compose), không phải localhost.
 
-Sửa `Caddyfile`: thay `yourdomain.com` bằng domain thật.
+Sửa `Caddyfile`: thay `merlinle.com` bằng domain thật.
 
 ### 1.5 Khởi chạy
 
 ```bash
-cd ~/vocab-backend
+cd ~/languages-learning/backend
 
 # Thư mục audio TTS: container chạy user không-root nên host dir phải ghi được
 mkdir -p uploads/tts && chmod -R 777 uploads
@@ -131,12 +131,12 @@ docker exec vocab-pg sh -c "pg_dump -U vocab vocab_app | gzip > /tmp/vocab.sql.g
 docker cp vocab-pg:/tmp/vocab.sql.gz .
 docker exec vocab-pg rm /tmp/vocab.sql.gz
 tar -czf tts.tgz -C C:\WORKSPACE\languages-leaning\code\backend uploads
-scp vocab.sql.gz tts.tgz deploy@<IP-VPS>:~/vocab-backend/
+scp vocab.sql.gz tts.tgz deploy@<IP-VPS>:~/languages-learning/backend/
 ```
 
 ```bash
 # VPS (db phải còn TRỐNG — dump đã chứa schema + alembic_version):
-cd ~/vocab-backend
+cd ~/languages-learning/backend
 gunzip -c vocab.sql.gz | docker compose exec -T db psql -U vocab vocab_app
 tar xzf tts.tgz && chmod -R 777 uploads
 docker compose restart api
@@ -149,21 +149,21 @@ Tài khoản + tiến độ học đi theo dump — đăng nhập y như ở loc
 Không dùng Caddy — nginx có sẵn làm reverse proxy. Repo đã kèm `docker-compose.override.yml` (tự merge): api chỉ mở `127.0.0.1:8000`, PostgreSQL giảm RAM cho máy 1GB, log giới hạn 30MB/service.
 
 ```bash
-cd ~/vocab/backend
+cd ~/languages-learning/backend
 docker compose up -d --build api db     # CHỈ 2 service này, KHÔNG khởi động caddy
 ```
 
-Thêm site nginx (dùng subdomain, ví dụ `vocab.tenmiencuaban.com` — trỏ bản ghi A về IP VPS trước):
+Thêm site nginx (dùng subdomain, ví dụ `merlinle.com` — trỏ bản ghi A về IP VPS trước):
 
 ```bash
 sudo tee /etc/nginx/sites-available/vocab << 'NGINX'
 server {
     listen 80;
-    server_name vocab.tenmiencuaban.com;
+    server_name merlinle.com;
     client_max_body_size 20m;
 
     # Web app (Flutter web build — file tĩnh, xem §2.2)
-    root /var/www/vocab-web;
+    root /var/www/languages-learning;
     index index.html;
     location / {
         try_files $uri $uri/ /index.html;
@@ -177,28 +177,28 @@ server {
     }
 }
 NGINX
-sudo mkdir -p /var/www/vocab-web
+sudo mkdir -p /var/www/languages-learning
 sudo ln -s /etc/nginx/sites-available/vocab /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
 
 # TLS miễn phí (tự gia hạn):
 sudo apt install -y certbot python3-certbot-nginx
-sudo certbot --nginx -d vocab.tenmiencuaban.com
+sudo certbot --nginx -d merlinle.com
 ```
 
 Giữ đĩa sạch trên máy 11GB (còn ~4.7GB): backup giữ 7 bản thay vì 14 (sửa `tail -n +15` thành `tail -n +8` trong cron §1.7), và mỗi tháng chạy `docker system prune -f`.
 
-API base URL cho app mobile: `https://vocab.tenmiencuaban.com/api`.
+API base URL cho app mobile: `https://merlinle.com/api`.
 
 ### 1.6 Kiểm tra
 
 ```bash
 docker compose ps                          # 3 service: api, db, caddy đều Up
-curl https://yourdomain.com/api/health     # {"status":"ok"}
+curl https://merlinle.com/api/health     # {"status":"ok"}
 docker compose logs -f api                 # xem log khi cần
 ```
 
-Test từ ngoài: đăng ký + đăng nhập qua `https://yourdomain.com/api/auth/...` như LOCAL_GUIDE.md mục 1.8.
+Test từ ngoài: đăng ký + đăng nhập qua `https://merlinle.com/api/auth/...` như LOCAL_GUIDE.md mục 1.8.
 
 ### 1.7 Backup database (bắt buộc)
 
@@ -218,7 +218,7 @@ Khôi phục: `gunzip -c backup.sql.gz | docker compose exec -T db psql -U vocab
 ### 1.8 Cập nhật phiên bản mới
 
 ```bash
-cd ~/vocab-backend
+cd ~/languages-learning/backend
 # scp/git pull code mới lên, rồi:
 docker compose up -d --build api
 docker compose exec api alembic upgrade head   # nếu có migration mới
@@ -290,7 +290,7 @@ dependencies {
 flutter build apk --release --dart-define=API_BASE_URL=http://<IP-máy-dev>:8000/api
 
 # Production (sau khi deploy VPS):
-flutter build apk --release --dart-define=API_BASE_URL=https://yourdomain.com/api
+flutter build apk --release --dart-define=API_BASE_URL=https://merlinle.com/api
 
 # File nhỏ hơn (~8-10MB, lấy bản arm64):
 flutter build apk --release --split-per-abi --dart-define=API_BASE_URL=...
@@ -315,7 +315,7 @@ rồi cấu hình signing theo https://docs.flutter.dev/deployment/android#sign-
 
 ```powershell
 cd C:\WORKSPACE\languages-leaning\code\mobile
-flutter build web --release --dart-define=API_BASE_URL=https://vocab.tenmiencuaban.com/api
+flutter build web --release --dart-define=API_BASE_URL=https://merlinle.com/api
 # Kết quả: mobile\build\web\ (index.html + main.dart.js + assets...)
 ```
 
@@ -326,20 +326,22 @@ flutter build web --release --dart-define=API_BASE_URL=https://vocab.tenmiencuab
 cd C:\WORKSPACE\languages-leaning\code
 tar -czf web.tgz -C mobile\build\web .
 git add web.tgz && git commit -m "web app build" && git push
-# VPS: cd ~/vocab && git pull && sudo tar xzf web.tgz -C /var/www/vocab-web
+# VPS: cd ~/languages-learning && git pull && sudo tar xzf web.tgz -C /var/www/languages-learning
 
 # Cách B — scp trực tiếp:
 tar -czf web.tgz -C mobile\build\web .
 scp web.tgz deploy@<IP-VPS>:~
-# VPS: sudo tar xzf ~/web.tgz -C /var/www/vocab-web && rm ~/web.tgz
+# VPS: sudo tar xzf ~/web.tgz -C /var/www/languages-learning && rm ~/web.tgz
 ```
 
-Mở `https://vocab.tenmiencuaban.com` là vào app. Web cùng domain với API nên không cần cấu hình CORS. Web app thêm ~50MB disk, gần như không tốn RAM/CPU (file tĩnh) — cấu hình VPS tối thiểu không đổi so với chạy backend đơn thuần. Lưu ý web không có notification nhắc học (đã ghi trong README mobile); cập nhật phiên bản = build lại + upload đè.
+**Sau MỖI lần deploy web mới:** Cloudflare cache file `.js` ở edge và Flutter web còn có service worker — nên (1) Cloudflare dashboard → Caching → **Purge Everything**; (2) trình duyệt F12 → Application → Service workers → Unregister rồi mở lại tab. Không làm sẽ thấy "vẫn như cũ". Kiểm tra bản trên đĩa đã mới: `grep -c <tên-field-mới> /var/www/<web-root>/main.dart.js`.
+
+Mở `https://merlinle.com` là vào app. Web cùng domain với API nên không cần cấu hình CORS. Web app thêm ~50MB disk, gần như không tốn RAM/CPU (file tĩnh) — cấu hình VPS tối thiểu không đổi so với chạy backend đơn thuần. Lưu ý web không có notification nhắc học (đã ghi trong README mobile); cập nhật phiên bản = build lại + upload đè.
 
 ### 2.3 iOS (khi cần)
 
 - Cần macOS + Xcode + Apple Developer account ($99/năm).
-- `flutter build ipa --release --dart-define=API_BASE_URL=https://yourdomain.com/api`
+- `flutter build ipa --release --dart-define=API_BASE_URL=https://merlinle.com/api`
 - Phân phối nhóm nhỏ qua **TestFlight** (tối đa 100 internal tester).
 
 ### 2.4 Kiểm tra bản release

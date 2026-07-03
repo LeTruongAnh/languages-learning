@@ -64,17 +64,39 @@ class HomeScreen extends ConsumerWidget {
                   _LanguageCard(lang: lang, accent: _accentFor(lang)),
                 if (home.summary.hardItemsCount > 0)
                   Card(
-                    child: ListTile(
-                      contentPadding:
-                          const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                      title: const Text('🔥 Hard Items',
-                          style: TextStyle(fontWeight: FontWeight.w800)),
-                      subtitle: Text('${home.summary.hardItemsCount} mục khó cần ôn thêm'),
-                      trailing: FilledButton(
-                        style:
-                            FilledButton.styleFrom(backgroundColor: AppColors.hardItems),
-                        onPressed: () => context.push('/hard-items'),
-                        child: const Text('Xem'),
+                    // Plain Row (not ListTile): newer Flutter SDKs assert when a
+                    // button with theme-wide full-width minimumSize sits in
+                    // ListTile.trailing -> blank screen.
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 12),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('🔥 Hard Items',
+                                    style:
+                                        TextStyle(fontWeight: FontWeight.w800)),
+                                const SizedBox(height: 2),
+                                Text(
+                                    '${home.summary.hardItemsCount} mục khó cần ôn thêm',
+                                    style: const TextStyle(
+                                        fontSize: 13, color: AppColors.textSub)),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          FilledButton(
+                            style: FilledButton.styleFrom(
+                              backgroundColor: AppColors.hardItems,
+                              minimumSize: const Size(72, 40),
+                            ),
+                            onPressed: () => context.push('/hard-items'),
+                            child: const Text('Xem'),
+                          ),
+                        ],
                       ),
                     ),
                   ),

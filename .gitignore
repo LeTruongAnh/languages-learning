@@ -17,7 +17,9 @@ backend/scripts/uvicorn_seed.*
 mobile/.dart_tool/
 mobile/build/
 mobile/.flutter-plugins*
-mobile/android/
+# android/ ĐƯỢC commit (chứa config desugaring, manifest đã sửa)
+mobile/android/local.properties
+mobile/android/.gradle/
 mobile/ios/
 mobile/web/
 mobile/windows/
