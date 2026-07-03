@@ -19,7 +19,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ## Test
 
 ```bash
-pytest        # 36 tests — SQLite in-memory, không cần PostgreSQL
+pytest        # 37 tests — SQLite in-memory, không cần PostgreSQL
 ```
 
 ## Trạng thái: HOÀN CHỈNH (vượt acceptance criteria spec §19)
@@ -42,7 +42,8 @@ pytest        # 36 tests — SQLite in-memory, không cần PostgreSQL
 | Rate limiting (login 5/min, register 3/min, refresh 10/min, import 5/h) | ✅ |
 | **Due forecast** (`dueTomorrow` trong /dashboard/languages) | ✅ |
 | **Completion stats**: streak + kỷ lục + thẻ tốt nghiệp (trả về khi complete) | ✅ |
-| Test suite **36/36 pass** | ✅ |
+| **Resume phiên dở**: dashboard trả `activeSessionType`, app mở lại đúng phiên khi Tạm dừng | ✅ |
+| Test suite **37/37 pass** | ✅ |
 
 ## API chính
 

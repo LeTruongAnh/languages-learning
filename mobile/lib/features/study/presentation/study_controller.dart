@@ -4,7 +4,7 @@ import '../../../core/models/models.dart';
 import '../data/study_repository.dart';
 
 /// How a study session is launched from the UI.
-enum StudySource { daily, extra, weekly, hard }
+enum StudySource { daily, extra, weekly, hard, current }
 
 class StudyLaunch {
   const StudyLaunch.daily(this.languageId, {this.ttsLang, this.accentColor, this.languageName})
@@ -13,6 +13,10 @@ class StudyLaunch {
       : source = StudySource.extra;
   const StudyLaunch.weekly(this.languageId, {this.ttsLang, this.accentColor, this.languageName})
       : source = StudySource.weekly;
+
+  /// RESUME today's unfinished session (after "Tạm dừng") — never creates one.
+  const StudyLaunch.current(this.languageId, {this.ttsLang, this.accentColor, this.languageName})
+      : source = StudySource.current;
   const StudyLaunch.hard()
       : source = StudySource.hard,
         languageId = null,
@@ -128,6 +132,7 @@ class StudyController extends StateNotifier<AsyncValue<StudyState>> {
         StudySource.extra => await _repo.createExtra(_launch.languageId!),
         StudySource.weekly => await _repo.createWeekly(_launch.languageId!),
         StudySource.hard => await _repo.createHardSession(),
+        StudySource.current => await _repo.getCurrent(_launch.languageId!),
       };
       final firstPending = session.items.indexWhere((i) => i.result == null);
       state = AsyncValue.data(StudyState(

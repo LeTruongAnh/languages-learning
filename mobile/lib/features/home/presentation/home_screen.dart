@@ -152,22 +152,31 @@ class _LanguageCard extends ConsumerWidget {
             FilledButton(
               style: FilledButton.styleFrom(backgroundColor: accent),
               onPressed: () async {
-                final launch = done
-                    ? StudyLaunch.extra(lang.languageId,
+                // Priority 1: RESUME today's unfinished session (paused via
+                // "Tạm dừng") — never spawn a new one over it.
+                final launch = lang.hasActiveSession
+                    ? StudyLaunch.current(lang.languageId,
                         ttsLang: lang.ttsLang,
                         languageName: lang.name,
                         accentColor: lang.accentColor)
-                    : StudyLaunch.daily(lang.languageId,
-                        ttsLang: lang.ttsLang,
-                        languageName: lang.name,
-                        accentColor: lang.accentColor);
+                    : done
+                        ? StudyLaunch.extra(lang.languageId,
+                            ttsLang: lang.ttsLang,
+                            languageName: lang.name,
+                            accentColor: lang.accentColor)
+                        : StudyLaunch.daily(lang.languageId,
+                            ttsLang: lang.ttsLang,
+                            languageName: lang.name,
+                            accentColor: lang.accentColor);
                 await context.push('/study', extra: launch);
                 ref.invalidate(homeDataProvider); // refresh counts after studying
               },
-              child: Text(done
-                  ? 'Học thêm phiên phụ'
-                  : lang.todayLearned > 0
-                      ? 'Tiếp tục học'
+              child: Text(lang.hasActiveSession
+                  ? (lang.activeSessionType == 'LANGUAGE_WEEKLY'
+                      ? 'Tiếp tục Ôn tuần (đang dở)'
+                      : 'Tiếp tục học (đang dở)')
+                  : done
+                      ? 'Học thêm phiên phụ'
                       : 'Bắt đầu học'),
             ),
             if (_isWeeklyDay(lang)) ...[

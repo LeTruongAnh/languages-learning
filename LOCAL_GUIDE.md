@@ -27,10 +27,10 @@ Test suite chạy trên SQLite in-memory:
 
 ```powershell
 pytest
-# Kỳ vọng: 36 passed
+# Kỳ vọng: 37 passed
 ```
 
-Đây là bước kiểm tra nhanh nhất — nếu 36/36 pass thì logic auth, study engine, isolation đều đúng.
+Đây là bước kiểm tra nhanh nhất — nếu 37/37 pass thì logic auth, study engine, isolation đều đúng.
 
 ### 1.4 Chạy PostgreSQL local
 

@@ -30,6 +30,8 @@ class LanguageSummary(CamelModel):
     weekly_review_day: str = "SUNDAY"
     # Forecast: cards that become due tomorrow (today's leftovers roll over too).
     due_tomorrow: int = 0
+    # Session type (LANGUAGE_DAILY/EXTRA/WEEKLY) of today's unfinished session, if any.
+    active_session_type: str | None = None
 
 
 class HistoryDay(CamelModel):

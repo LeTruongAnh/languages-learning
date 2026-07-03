@@ -29,6 +29,12 @@ class StudyRepository {
     return StudySession.fromJson(res.data as Map<String, dynamic>);
   }
 
+  /// Today's unfinished session (any type) — used to RESUME after pausing.
+  Future<StudySession> getCurrent(String languageId) async {
+    final res = await _dio.get('/languages/$languageId/study-sessions/current');
+    return StudySession.fromJson(res.data as Map<String, dynamic>);
+  }
+
   Future<Map<String, dynamic>> submitReview({
     required String sessionId,
     required String sessionItemId,

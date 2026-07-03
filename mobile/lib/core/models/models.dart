@@ -39,6 +39,7 @@ class LanguageSummary {
     required this.dailyLimit,
     this.weeklyReviewDay = 'SUNDAY',
     this.dueTomorrow = 0,
+    this.activeSessionType,
     this.accentColor,
   });
 
@@ -58,6 +59,11 @@ class LanguageSummary {
   /// Forecast: cards becoming due tomorrow.
   final int dueTomorrow;
 
+  /// Type of today's unfinished session (LANGUAGE_DAILY/EXTRA/WEEKLY), if any.
+  final String? activeSessionType;
+
+  bool get hasActiveSession => activeSessionType != null;
+
   factory LanguageSummary.fromJson(Map<String, dynamic> json) => LanguageSummary(
         languageId: json['languageId'] as String,
         code: json['code'] as String,
@@ -72,6 +78,7 @@ class LanguageSummary {
         dailyLimit: json['dailyLimit'] as int,
         weeklyReviewDay: json['weeklyReviewDay'] as String? ?? 'SUNDAY',
         dueTomorrow: json['dueTomorrow'] as int? ?? 0,
+        activeSessionType: json['activeSessionType'] as String?,
       );
 }
 

@@ -7,7 +7,7 @@ from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.timeutil import today_in_tz
-from app.models import Language, LanguageSetting, ReviewLog, StudyItem
+from app.models import Language, LanguageSetting, ReviewLog, StudyItem, StudySession
 from app.schemas.dashboard import HistoryDay, LanguageSummary, TodaySummary
 from app.services.study_session_service import HARD_LEVELS
 
@@ -170,6 +170,20 @@ async def languages(db: AsyncSession, user_id: uuid.UUID) -> list[LanguageSummar
             StudyItem.item_type == "SENTENCE",
             StudyItem.passed.is_(False),
         )) or 0
+        # Resume support: an unfinished session from today must surface on
+        # Home as "continue" — NOT spawn a fresh session (bug: pausing an
+        # EXTRA/WEEKLY session used to lose it forever).
+        active_session_type = await db.scalar(
+            select(StudySession.session_type)
+            .where(
+                StudySession.user_id == user_id,
+                StudySession.language_id == lang.id,
+                StudySession.status == "ACTIVE",
+                StudySession.study_date == today,
+            )
+            .order_by(StudySession.created_at.desc())
+            .limit(1)
+        )
         due_tomorrow = await db.scalar(base.where(
             StudyItem.passed.is_(False),
             StudyItem.next_review_date == today + timedelta(days=1),
@@ -204,6 +218,7 @@ async def languages(db: AsyncSession, user_id: uuid.UUID) -> list[LanguageSummar
             daily_limit=daily_limit,
             weekly_review_day=weekly_day,
             due_tomorrow=due_tomorrow,
+            active_session_type=active_session_type,
         ))
     return summaries
 

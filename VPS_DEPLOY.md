@@ -235,6 +235,18 @@ docker compose exec api alembic upgrade head   # nếu có migration mới
 
 ---
 
+### 1.10 Cloudflare (tùy chọn, khuyến nghị): che IP VPS + CDN
+
+Thứ tự quan trọng — cấp SSL Let's Encrypt TRƯỚC khi bật proxy:
+
+1. dash.cloudflare.com → Add a domain → plan Free → giữ 2 bản ghi A (`@` và `www` → IP VPS) ở chế độ **DNS only (xám)**.
+2. Đổi nameserver tại nơi mua domain sang 2 NS Cloudflare đưa → chờ Active.
+3. Trên VPS: `certbot --nginx -d domain -d www.domain` (verify trực tiếp khi chưa proxy).
+4. Bật **Proxied (cam)** cho cả 2 bản ghi; **SSL/TLS → Full (strict)** (Flexible sẽ gây redirect loop); bật **Always Use HTTPS**.
+5. Kiểm tra: `nslookup domain` trả IP Cloudflare (IP VPS đã ẩn); web + `/api/health` chạy qua HTTPS.
+
+Certbot vẫn tự gia hạn qua proxy. Audio TTS không bị CDN cache nhầm (URL không có đuôi .mp3, kèm token). Khi có nhiều user cần IP thật trong log/rate-limit: cài nginx real-IP module với dải IP Cloudflare.
+
 ## PHẦN 2 — BUILD & PHÂN PHỐI APP (Android / Web / iOS)
 
 ### 2.1 Android — build APK release
