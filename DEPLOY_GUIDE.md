@@ -181,9 +181,9 @@ android:usesCleartextTraffic="true"
 
 1. Đăng ký tài khoản mới trong app → tự đăng nhập vào Home.
 2. Home hiển thị language card (cần tạo ngôn ngữ + item trước qua Swagger/import — mục 1.8, 1.9).
-3. Bấm **Bắt đầu học** → thẻ hiện ra, TTS tự đọc.
-4. Bấm **Hiện nghĩa** → PASS/FAIL/SKIP → thẻ tiếp theo.
-5. Học hết → màn hình Hoàn thành → Về Home → progress cập nhật.
+3. Bấm **Bắt đầu học** → thẻ hiện ra, tự phát âm (mp3 từ server).
+4. Bấm **Hiện nghĩa** → chấm Quên/Khó/Nhớ/Dễ (hoặc Bỏ qua) → thẻ tiếp theo; thử nút ↩ hoàn tác.
+5. Học hết → màn Hoàn thành hiện 🔥 streak / 🏆 kỷ lục / 🎓 thẻ tốt nghiệp → Về Home → progress + forecast cập nhật.
 6. Tắt app mở lại → vẫn đăng nhập (token trong secure storage), phiên dở dang resume đúng thẻ.
 7. Dashboard hiển thị số liệu; Settings đổi tốc độ đọc có hiệu lực; Đăng xuất → về Login.
 8. Tắt backend → app hiện "Không kết nối được máy chủ" + nút Thử lại (không crash).
@@ -194,8 +194,26 @@ android:usesCleartextTraffic="true"
 
 ### 3.1 Chuẩn bị VPS + domain
 
-- VPS Ubuntu 24.04, tối thiểu 2GB RAM (khuyến nghị 4GB).
+**Cấu hình VPS cần thiết** (đo theo stack thật: FastAPI 1 worker + PostgreSQL 16 + Caddy, ~10k items):
+
+| Thành phần | RAM thực dùng |
+|---|---|
+| PostgreSQL (shared_buffers=256MB, max_connections=30) | ~300-400MB |
+| API (uvicorn + edge-tts lúc sinh audio) | ~150-250MB |
+| Caddy | ~30-50MB |
+| Ubuntu nền | ~250-300MB |
+
+| Mức | Cấu hình | Phù hợp |
+|---|---|---|
+| Tối thiểu | 1 vCPU / 1GB RAM / 20GB SSD | Chạy được (1-3 user) nhưng sát RAM — bắt buộc thêm 2GB swap, build image sẽ chậm |
+| **Khuyến nghị** | **1-2 vCPU / 2GB RAM / 25GB SSD** (~$6-12/tháng) | 1-10 user, dư đầu cho build + backup + TTS batch |
+| Thoải mái | 2 vCPU / 4GB RAM / 40GB SSD (spec §16) | Nhiều user hơn / thêm web companion sau này |
+
+Disk thực dùng: image Docker ~350MB + PG data <1GB + audio TTS ~200-300MB (9.5k mp3) → 20GB là đủ rộng. Băng thông không đáng kể (mp3 ~15KB/file, có cache client). VPS cần ra được internet (edge-tts gọi endpoint của Microsoft).
+
+- OS: Ubuntu 24.04.
 - Trỏ DNS: bản ghi `A` của `yourdomain.com` → IP VPS (Caddy cần domain để tự cấp TLS).
+- Nếu chọn VPS 1GB, tạo swap trước: `fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile` (+ ghi vào /etc/fstab).
 
 ### 3.2 Cài đặt ban đầu (SSH vào VPS, chạy 1 lần)
 
@@ -213,10 +231,14 @@ usermod -aG docker deploy
 
 ### 3.3 Đưa code lên VPS
 
-Cách đơn giản nhất từ máy Windows:
+Cách đơn giản nhất từ máy Windows — nén trước để KHÔNG kéo theo `.venv`/`__pycache__`/`uploads` (nặng hàng trăm MB):
 
 ```powershell
-scp -r C:\WORKSPACE\languages-leaning\code\backend deploy@<IP-VPS>:~/vocab-backend
+cd C:\WORKSPACE\languages-leaning\code
+tar --exclude=backend/.venv --exclude=backend/uploads --exclude=backend/__pycache__ `
+    --exclude=backend/.pytest_cache -czf backend.tgz backend
+scp backend.tgz deploy@<IP-VPS>:~
+ssh deploy@<IP-VPS> "tar xzf backend.tgz && mv backend vocab-backend && rm backend.tgz"
 ```
 
 (Về lâu dài nên dùng git repo: `git clone` trên VPS.)
@@ -245,10 +267,51 @@ Sửa `Caddyfile`: thay `yourdomain.com` bằng domain thật.
 ### 3.5 Khởi chạy
 
 ```bash
+cd ~/vocab-backend
+
+# Thư mục audio TTS: container chạy user không-root nên host dir phải ghi được
+mkdir -p uploads/tts && chmod -R 777 uploads
+
 docker compose up -d --build
-docker compose exec api alembic revision --autogenerate -m "initial schema"   # lần đầu
-docker compose exec api alembic upgrade head
+docker compose exec api alembic upgrade head   # repo đã kèm sẵn migration đầy đủ — KHÔNG chạy autogenerate trên VPS
 ```
+
+### 3.5b Seed dữ liệu + sinh audio (một lần)
+
+```bash
+# Tạo tài khoản + import 9.511 từ/câu (script + CSV đã đóng gói trong image)
+docker compose exec api python scripts/seed.py
+
+# Sinh sẵn toàn bộ mp3 phát âm (~30-60 phút; bỏ qua được — từ chưa có audio sẽ sinh lúc bấm loa)
+docker compose exec -d api python scripts/generate_tts.py   # -d = chạy nền
+docker compose exec api sh -c 'ls uploads/tts | wc -l'      # theo dõi tiến độ
+```
+
+Muốn đổi tài khoản seed: `docker compose exec -e SEED_EMAIL=ban@mail.com -e SEED_PASSWORD='MatKhau!' api python scripts/seed.py`
+
+### 3.5c CÁCH NHANH HƠN: mang DB + audio từ máy dev lên (thay cho 3.5b)
+
+Audio mp3 đặt tên theo **UUID của item**, mà seed lại trên VPS sẽ sinh UUID mới → audio cũ không khớp. Muốn tái dùng ~9.5k mp3 đã build ở local thì chuyển cả database lẫn audio, **bỏ hẳn bước `alembic upgrade` + seed**:
+
+```powershell
+# Máy dev — nén NGAY TRONG container (Windows không có gzip, và pipe của
+# PowerShell làm hỏng dữ liệu nhị phân):
+docker exec vocab-pg sh -c "pg_dump -U vocab vocab_app | gzip > /tmp/vocab.sql.gz"
+docker cp vocab-pg:/tmp/vocab.sql.gz .
+docker exec vocab-pg rm /tmp/vocab.sql.gz
+tar -czf tts.tgz -C C:\WORKSPACE\languages-leaning\code\backend uploads
+scp vocab.sql.gz tts.tgz deploy@<IP-VPS>:~/vocab-backend/
+```
+
+```bash
+# VPS (db phải còn TRỐNG — dump đã chứa schema + alembic_version):
+cd ~/vocab-backend
+gunzip -c vocab.sql.gz | docker compose exec -T db psql -U vocab vocab_app
+tar xzf tts.tgz && chmod -R 777 uploads
+docker compose restart api
+```
+
+Tài khoản + tiến độ học đi theo dump — đăng nhập y như ở local. Lỡ chạy `alembic upgrade head` trước khi restore → conflict: `docker compose down -v` (xóa volume) rồi `up -d` làm lại. Từ nào thiếu mp3 vẫn tự sinh khi bấm loa.
 
 ### 3.6 Kiểm tra
 
@@ -367,7 +430,7 @@ rồi cấu hình signing theo https://docs.flutter.dev/deployment/android#sign-
 
 1. Cài APK release lên máy thật (không cắm USB debug).
 2. Đăng nhập bằng tài khoản trên server production.
-3. Chạy checklist mục 2.4 — đặc biệt TTS (giọng zh-CN phụ thuộc TTS engine của máy; nếu thiếu, cài "Google Text-to-speech" + data tiếng Trung).
+3. Chạy checklist mục 2.4. Phát âm là mp3 từ server (edge-tts) nên KHÔNG phụ thuộc TTS engine của máy — chỉ cần mạng tới server.
 
 ---
 
@@ -381,7 +444,9 @@ rồi cấu hình signing theo https://docs.flutter.dev/deployment/android#sign-
 | `alembic` báo `InvalidPasswordError` khi dev local | (1) PostgreSQL native Windows đang chiếm cổng 5432 → đổi Docker sang `-p 5433:5432` + sửa `.env`; (2) password `.env` khác lệnh `docker run`; (3) volume cũ giữ password cũ → `docker volume rm vocab_pgdata` rồi tạo lại |
 | `docker compose up` lỗi database | `POSTGRES_PASSWORD` trong `.env` không khớp `DATABASE_URL`; hoặc volume cũ giữ password cũ → `docker volume rm vocab-backend_pgdata` (mất data!) |
 | Caddy không cấp được TLS | DNS chưa trỏ đúng IP, hoặc cổng 80/443 bị firewall chặn |
-| TTS không đọc tiếng Trung | Cài Google TTS + tải voice data zh-CN trong cài đặt Android |
+| Loa không kêu trên VPS / 503 khi bấm loa | Container không ghi được `uploads/` (quyền) → `chmod -R 777 uploads` rồi `docker compose restart api`; hoặc VPS không ra được internet (edge-tts cần) |
+| API qua domain trả 404 nhưng `docker compose exec api curl localhost:8000/api/health` chạy | Caddyfile dùng `handle_path` (strip mất prefix `/api`) — phải dùng `handle /api/*` như file trong repo |
+| Alembic autogenerate ra `drop_column('image_path')` trên máy dev | Cột thừa từ tính năng ảnh đã gỡ — cứ apply (không mất dữ liệu) hoặc xóa tay: `ALTER TABLE study_items DROP COLUMN IF EXISTS image_path;` |
 | Session hôm qua vẫn hiện | Đúng thiết kế: session cũ tự chuyển EXPIRED khi tạo session ngày mới |
 | Sửa code backend nhưng hành vi không đổi / route mới không xuất hiện | Process python cũ giữ cổng 8000, uvicorn mới chết im lặng. Restart sạch: `Get-Process python* \| Stop-Process -Force` → `netstat -ano \| findstr :8000` phải trống → xóa `__pycache__` → chạy lại |
 | Loa báo lỗi "Format error" trên web | Server trả JSON lỗi thay vì mp3 — xem console Flutter dòng `TTS prefetch failed: HTTP ...` để biết nguyên nhân thật (503 = thiếu edge-tts / lỗi mạng; 404 = server chạy code cũ) |

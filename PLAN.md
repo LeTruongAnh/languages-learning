@@ -193,6 +193,8 @@ code/
 Nguồn tham chiếu pattern: Anki (SRS thuần), Duolingo (gamification/habit), Memrise (đa dạng bài tập), Pimsleur (audio-first), Clozemaster (cloze), Pleco (tra cứu tiếng Trung).
 
 ### Ưu tiên cao — ✅ ĐÃ TRIỂN KHAI (02/07/2026): undo, 4 mức trả lời, ease factor SM-2, chiều học đảo, nhắc học + streak grace 1 ngày
+
+### P1 từ MARKET_UX_ANALYSIS — ✅ ĐÃ TRIỂN KHAI (03/07/2026): due forecast trên Home (dueTomorrow), completion screen có streak/kỷ lục/thẻ tốt nghiệp. (Ảnh minh họa + màn quản lý từ vựng: đã làm rồi GỠ BỎ theo quyết định 03/07 — kho từ do admin quản qua import/Swagger.)
 | # | Cải tiến | Học từ | Ghi chú triển khai |
 |---|---|---|---|
 | 1 | **Undo thẻ vừa trả lời** | Anki | Bấm nhầm PASS/FAIL rất phổ biến. Backend: endpoint revert dùng old_* trong review_logs (chỉ cho thẻ gần nhất, trong phiên đang mở) |

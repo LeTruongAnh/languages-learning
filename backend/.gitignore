@@ -7,3 +7,4 @@ uploads/
 web-dist/
 .venv/
 venv/
+scripts/uvicorn_seed.*

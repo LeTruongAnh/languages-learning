@@ -10,7 +10,9 @@ yourdomain.com {
     -Server
   }
 
-  handle_path /api/* {
+  # NOTE: dung `handle` (KHONG dung handle_path) vi backend dang ky route
+  # kem prefix /api — strip prefix se lam 404 toan bo API.
+  handle /api/* {
     reverse_proxy api:8000
   }
 

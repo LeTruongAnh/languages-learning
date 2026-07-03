@@ -11,6 +11,10 @@ RUN pip install --no-cache-dir . && pip cache purge
 COPY app ./app
 COPY alembic ./alembic
 COPY alembic.ini ./
+COPY scripts ./scripts
+COPY seed_data ./seed_data
+
+RUN mkdir -p /app/uploads/tts && chown -R app:app /app/uploads
 
 USER app
 EXPOSE 8000
