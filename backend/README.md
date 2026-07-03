@@ -1,8 +1,8 @@
 # Vocab API — Backend
 
-FastAPI + PostgreSQL backend cho app học từ vựng. Xem `../PLAN.md` và `../DEPLOY_GUIDE.md`.
+FastAPI + PostgreSQL backend cho app học từ vựng. Xem `../PLAN.md`, `../LOCAL_GUIDE.md` (chạy local) và `../VPS_DEPLOY.md` (deploy).
 
-## Chạy local (tóm tắt — chi tiết trong DEPLOY_GUIDE)
+## Chạy local (tóm tắt — chi tiết trong LOCAL_GUIDE.md)
 
 ```bash
 cd backend

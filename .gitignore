@@ -1,0 +1,25 @@
+# Deploy artifacts: cố ý commit tts.tgz + vocab.sql.gz để clone về VPS cho tiện
+# (repo PHẢI để Private — dump chứa dữ liệu + hash mật khẩu)
+*.sql
+
+# Python
+backend/.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+backend/.env
+backend/uploads/
+backend/web-dist/
+backend/scripts/uvicorn_seed.*
+
+# Flutter
+mobile/.dart_tool/
+mobile/build/
+mobile/.flutter-plugins*
+mobile/android/
+mobile/ios/
+mobile/web/
+mobile/windows/
+mobile/linux/
+mobile/macos/

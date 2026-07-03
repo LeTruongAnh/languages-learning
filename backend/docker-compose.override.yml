@@ -1,0 +1,25 @@
+# Override cho VPS DUNG CHUNG (1GB RAM, nginx co san chiem cong 80).
+# docker compose tu dong merge file nay voi docker-compose.yml.
+# Khoi dong CHI api + db (khong Caddy):  docker compose up -d --build api db
+services:
+  api:
+    ports:
+      - "127.0.0.1:8000:8000"   # chi localhost — nginx proxy vao, ngoai khong truy cap truc tiep
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  db:
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_buffers=128MB"      # giam tu 256MB cho may 1GB RAM
+      - "-c"
+      - "work_mem=4MB"
+      - "-c"
+      - "maintenance_work_mem=32MB"
+      - "-c"
+      - "max_connections=20"
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
