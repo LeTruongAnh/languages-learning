@@ -7,25 +7,30 @@ import '../storage/token_storage.dart';
 /// Pronunciation playback — plays server-generated mp3 (edge-tts neural
 /// voices) instead of on-device TTS.
 ///
-/// Flow: prefetch via Dio first (Bearer auth; surfaces REAL errors like
-/// "503 TTS generation failed" instead of the media element's cryptic
-/// "format error"), which also generates+caches the file server-side.
-/// Then play the URL — the second request hits the warm cache instantly.
-/// The URL carries the access token because HTML <audio> elements cannot
-/// send Authorization headers.
+/// Playback-rate gotcha (web): the browser resets `playbackRate` to 1.0
+/// whenever a new source loads, and the load may finish AFTER play()
+/// returns. So the rate is re-applied on every "playing" state event —
+/// the only moment it reliably sticks.
 class TtsService {
   TtsService({
     required this.baseUrl,
     required Dio dio,
     required TokenStorage tokens,
   })  : _dio = dio,
-        _tokens = tokens;
+        _tokens = tokens {
+    _player.onPlayerStateChanged.listen((state) {
+      if (state == PlayerState.playing) {
+        _player.setPlaybackRate(_currentRate);
+      }
+    });
+  }
 
   final String baseUrl;
   final Dio _dio;
   final TokenStorage _tokens;
   final AudioPlayer _player = AudioPlayer();
   int _seq = 0;
+  double _currentRate = 0.9;
 
   Future<void> speak({
     required String itemId,
@@ -59,10 +64,13 @@ class TtsService {
     final token = await _tokens.accessToken;
     if (token == null || my != _seq) return;
     try {
-      await _player.setPlaybackRate(rate.clamp(0.5, 1.5));
+      _currentRate = rate.clamp(0.5, 1.5);
       await _player.setVolume(volume.clamp(0.0, 1.0));
       if (my != _seq) return;
       await _player.play(UrlSource('$baseUrl/tts/$itemId?token=$token'));
+      // Applied again by the onPlayerStateChanged listener once actually
+      // playing; this immediate call covers native platforms.
+      await _player.setPlaybackRate(_currentRate);
     } catch (e) {
       debugPrint('TTS playback failed: $e');
     }

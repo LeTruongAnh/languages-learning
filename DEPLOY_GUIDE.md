@@ -292,33 +292,63 @@ docker compose exec api alembic upgrade head   # nếu có migration mới
 
 ### 4.1 Android — build APK release
 
-Tạo keystore ký app (1 lần, **giữ file này cẩn thận**):
+**Bước 1 — tạo scaffold** (một lần, trong `mobile/`):
+
+```powershell
+flutter create . --platforms=android --org com.phong.vocab
+```
+
+**Bước 2 — sửa `android\app\src\main\AndroidManifest.xml`:** thêm quyền mạng (release không tự có) và cleartext (khi backend còn HTTP):
+
+```xml
+<uses-permission android:name="android.permission.INTERNET"/>
+<application android:usesCleartextTraffic="true" ...>
+```
+
+Khi đã có VPS HTTPS → xóa dòng `usesCleartextTraffic`.
+
+**Bước 3 — sửa `android\app\build.gradle.kts`:** package thông báo cần desugaring:
+
+```kotlin
+android {
+    compileOptions {
+        isCoreLibraryDesugaringEnabled = true
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
+    }
+}
+dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+}
+```
+
+(File Groovy `build.gradle` cũ: `coreLibraryDesugaringEnabled true` / `coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'`.)
+
+**Bước 4 — build** (URL bị nướng cứng vào APK lúc build):
+
+```powershell
+# Dev LAN (điện thoại cùng Wi-Fi, backend chạy --host 0.0.0.0, firewall mở 8000):
+flutter build apk --release --dart-define=API_BASE_URL=http://<IP-máy-dev>:8000/api
+
+# Production (sau khi deploy VPS):
+flutter build apk --release --dart-define=API_BASE_URL=https://yourdomain.com/api
+
+# File nhỏ hơn (~8-10MB, lấy bản arm64):
+flutter build apk --release --split-per-abi --dart-define=API_BASE_URL=...
+```
+
+Kết quả: `build\app\outputs\flutter-apk\app-release.apk`.
+
+**Bước 5 — cài:** gửi APK qua Zalo/Drive/USB → mở file → cho phép "cài từ nguồn không xác định".
+
+**Chữ ký:** mặc định release ký bằng debug key — đủ cho 1-10 người tự cài. Chỉ cần keystore riêng khi lên Google Play:
 
 ```powershell
 keytool -genkey -v -keystore c:\keys\vocab-upload.jks -storetype JKS `
   -keyalg RSA -keysize 2048 -validity 10000 -alias upload
 ```
 
-Tạo `mobile/android/key.properties`:
-
-```properties
-storePassword=<mật khẩu>
-keyPassword=<mật khẩu>
-keyAlias=upload
-storeFile=c:/keys/vocab-upload.jks
-```
-
-Trong `android/app/build.gradle` thêm cấu hình signing theo [hướng dẫn chuẩn Flutter](https://docs.flutter.dev/deployment/android#sign-the-app) (mục "Configure signing in gradle").
-
-Build với API production:
-
-```powershell
-cd mobile
-flutter build apk --release --dart-define=API_BASE_URL=https://yourdomain.com/api
-# Kết quả: build\app\outputs\flutter-apk\app-release.apk
-```
-
-Phân phối cho 1–10 người dùng nội bộ: gửi file APK trực tiếp (Zalo/Drive) → người dùng bật "Cài đặt từ nguồn không xác định". Không cần Google Play cho nhóm nhỏ.
+rồi cấu hình signing theo https://docs.flutter.dev/deployment/android#sign-the-app
 
 ### 4.2 iOS (khi cần)
 

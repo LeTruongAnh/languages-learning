@@ -143,6 +143,10 @@ class _StudyScreenState extends ConsumerState<StudyScreen> {
     final controller = ref.read(studyControllerProvider(widget.launch).notifier);
     final accent = _accent;
     final directionSetting = _directionSetting;
+    // Keep user settings alive while studying: the provider is autoDispose,
+    // so without a watcher every ref.read() in _speak would see a fresh
+    // "loading" state and silently fall back to the DEFAULT speech rate.
+    ref.watch(userSettingsProvider);
 
     return Scaffold(
       body: SafeArea(
