@@ -33,6 +33,14 @@ class LanguageOut(CamelModel):
     accent_color: str | None
     sort_order: int
     is_active: bool
+    # Per-requesting-user: has an active enrollment (language_settings row).
+    enrolled: bool = False
+
+
+class EnrollmentUpdate(CamelModel):
+    """Full desired set of enrolled language ids (sync semantics)."""
+
+    language_ids: list[uuid.UUID]
 
 
 class LanguageSettingUpdate(CamelModel):

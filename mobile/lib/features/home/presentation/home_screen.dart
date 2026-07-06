@@ -51,12 +51,34 @@ class HomeScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 16),
                 if (home.languages.isEmpty)
-                  const Card(
+                  Card(
                     child: Padding(
-                      padding: EdgeInsets.all(20),
-                      child: Text(
-                        'Chưa có ngôn ngữ nào.\nThêm ngôn ngữ và từ vựng qua web/API, hoặc import CSV.',
-                        style: TextStyle(color: AppColors.textSub),
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        children: [
+                          const Text('🌍', style: TextStyle(fontSize: 40)),
+                          const SizedBox(height: 8),
+                          const Text('Chọn ngôn ngữ để bắt đầu học',
+                              style: TextStyle(
+                                  fontSize: 16, fontWeight: FontWeight.w800)),
+                          const SizedBox(height: 4),
+                          const Text(
+                              'Kho từ vựng đã sẵn sàng — chỉ cần chọn ngôn ngữ bạn muốn.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                  fontSize: 13, color: AppColors.textSub)),
+                          const SizedBox(height: 14),
+                          FilledButton(
+                            style: FilledButton.styleFrom(
+                                backgroundColor: AppColors.english),
+                            onPressed: () async {
+                              await context.push('/choose-languages',
+                                  extra: true);
+                              ref.invalidate(homeDataProvider);
+                            },
+                            child: const Text('Chọn ngôn ngữ'),
+                          ),
+                        ],
                       ),
                     ),
                   ),

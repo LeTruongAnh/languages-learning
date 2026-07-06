@@ -9,6 +9,7 @@ import '../features/auth/presentation/login_screen.dart';
 import '../features/dashboard/presentation/dashboard_screen.dart';
 import '../features/hard_items/presentation/hard_items_screen.dart';
 import '../features/home/presentation/home_screen.dart';
+import '../features/languages/presentation/choose_languages_screen.dart';
 import '../features/settings/presentation/language_advanced_screen.dart';
 import '../features/settings/presentation/settings_screen.dart';
 import '../features/study/presentation/study_controller.dart';
@@ -55,6 +56,11 @@ final routerProvider = Provider<GoRouter>((ref) {
             LanguageAdvancedScreen(language: state.extra! as Language),
       ),
       GoRoute(path: '/hard-items', builder: (_, __) => const HardItemsScreen()),
+      GoRoute(
+        path: '/choose-languages',
+        builder: (_, state) =>
+            ChooseLanguagesScreen(isOnboarding: state.extra == true),
+      ),
     ],
   );
   ref.onDispose(router.dispose);

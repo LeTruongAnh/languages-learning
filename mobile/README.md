@@ -39,6 +39,8 @@ Base URL mặc định `http://10.0.2.2:8000/api` (Android emulator → localhos
 | Ôn tập tuần: chọn ngày + số thẻ, nút hiện trên Home đúng ngày, ưu tiên thẻ sai nhiều | ✅ |
 | Nút chấm chỉ hiện sau khi lật đáp án (chuẩn Anki), nút Hiện nghĩa full-width | ✅ |
 | Layout desktop web: nội dung giới hạn 520px, không loãng | ✅ |
+| Form đăng ký đầy đủ: tên hiển thị, hiện/ẩn mật khẩu, nhập lại mật khẩu, validate client | ✅ |
+| Chọn ngôn ngữ học (multi-select) sau đăng ký + đổi trong Settings; tắt vẫn giữ tiến độ | ✅ |
 | Tạm dừng giữa bài → Home hiện "Tiếp tục học (đang dở)" mở lại đúng phiên cũ (daily/extra/weekly) | ✅ |
 | Due forecast trên Home: đến hạn hôm nay · mới · dồn sang mai | ✅ |
 | Completion screen: 🔥 streak, 🏆 kỷ lục mới, 🎓 thẻ tốt nghiệp | ✅ |

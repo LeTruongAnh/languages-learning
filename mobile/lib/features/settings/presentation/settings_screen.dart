@@ -131,6 +131,22 @@ class SettingsScreen extends ConsumerWidget {
               ),
             ),
 
+            // Enrollment: which languages appear on Home
+            Card(
+              child: ListTile(
+                title: const Text('Ngôn ngữ đang học',
+                    style:
+                        TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600)),
+                subtitle: const Text(
+                    'Bật/tắt ngôn ngữ hiển thị — tắt vẫn giữ tiến độ',
+                    style: TextStyle(fontSize: 12)),
+                trailing: const Icon(Icons.chevron_right,
+                    color: AppColors.textSub),
+                onTap: () => context.push('/choose-languages'),
+              ),
+            ),
+            const SizedBox(height: 4),
+
             // Per-language study settings
             ...languages.when(
               loading: () => const [SizedBox.shrink()],

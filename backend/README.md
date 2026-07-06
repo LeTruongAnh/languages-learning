@@ -19,7 +19,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ## Test
 
 ```bash
-pytest        # 38 tests — SQLite in-memory, không cần PostgreSQL
+pytest        # 39 tests — SQLite in-memory, không cần PostgreSQL
 ```
 
 ## Trạng thái: HOÀN CHỈNH (vượt acceptance criteria spec §19)
@@ -45,13 +45,15 @@ pytest        # 38 tests — SQLite in-memory, không cần PostgreSQL
 | **Due forecast** (`dueTomorrow` trong /dashboard/languages) | ✅ |
 | **Completion stats**: streak + kỷ lục + thẻ tốt nghiệp (trả về khi complete) | ✅ |
 | **Resume phiên dở**: dashboard trả `activeSessionType`, app mở lại đúng phiên khi Tạm dừng | ✅ |
-| Test suite **38/38 pass** | ✅ |
+| **Enrollment**: `PUT /languages/enrollments` — user chọn ngôn ngữ học; Home chỉ hiện ngôn ngữ đã chọn; bỏ chọn GIỮ tiến độ | ✅ |
+| Test suite **39/39 pass** | ✅ |
 
 ## API chính
 
 ```text
 POST /api/auth/register|login|refresh|logout      GET /api/auth/me
 GET|POST|PATCH|DELETE /api/languages[/{id}]       GET|PATCH /api/languages/{id}/settings
+PUT  /api/languages/enrollments                   (chọn ngôn ngữ học — multi select)
 GET  /api/languages/{id}/facets                   (distinct difficulty/topic/frequency/situation)
 GET|POST|PATCH|DELETE /api/study-items[/{id}]
 POST /api/languages/{id}/study-sessions/daily|extra|weekly

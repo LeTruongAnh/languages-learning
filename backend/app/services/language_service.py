@@ -94,3 +94,42 @@ async def update_settings(
     await db.commit()
     await db.refresh(settings)
     return settings
+
+
+async def enrolled_language_ids(db: AsyncSession, user_id: uuid.UUID) -> set[uuid.UUID]:
+    rows = await db.scalars(
+        select(LanguageSetting.language_id).where(
+            LanguageSetting.user_id == user_id, LanguageSetting.is_active.is_(True)
+        )
+    )
+    return set(rows)
+
+
+async def sync_enrollments(
+    db: AsyncSession, user_id: uuid.UUID, language_ids: list[uuid.UUID]
+) -> list[Language]:
+    """Make the user's ACTIVE enrollments exactly `language_ids`.
+    Un-enrolling only flips is_active=False — PROGRESS IS KEPT; re-enrolling
+    restores the old settings untouched."""
+    wanted = set(language_ids)
+    catalog = {l.id: l for l in await list_languages(db)}
+    for lid in wanted:
+        if lid not in catalog:
+            raise NotFoundError("Language")
+
+    existing = {
+        s.language_id: s
+        for s in await db.scalars(
+            select(LanguageSetting).where(LanguageSetting.user_id == user_id)
+        )
+    }
+    for lid in wanted:
+        if lid in existing:
+            existing[lid].is_active = True
+        else:
+            db.add(LanguageSetting(user_id=user_id, language_id=lid))
+    for lid, setting in existing.items():
+        if lid not in wanted:
+            setting.is_active = False
+    await db.commit()
+    return [catalog[lid] for lid in wanted]

@@ -65,6 +65,11 @@ def main() -> None:
             sys.exit(f"LOI tao ngon ngu {lang['code']}: {res.status_code} {res.text}")
 
     # 4. Import CSVs — skip if data already exists (re-run safety).
+    # Enroll tai khoan seed vao tat ca ngon ngu (user thuong se tu chon trong app)
+    all_langs = client.get("/languages").json()
+    client.put("/languages/enrollments",
+               json={"languageIds": [l["id"] for l in all_langs]})
+
     existing = client.get("/study-items", params={"pageSize": 1}).json()
     if existing.get("total", 0) > 0 and os.environ.get("SEED_FORCE") != "1":
         print(f"[4/4] Da co {existing['total']} items — bo qua import de tranh trung.")

@@ -9,6 +9,7 @@ from app.api.deps import get_current_admin, get_current_user
 from app.core.database import get_db
 from app.models import User
 from app.schemas.language import (
+    EnrollmentUpdate,
     LanguageCreate,
     LanguageOut,
     LanguageSettingOut,
@@ -24,7 +25,32 @@ router = APIRouter(prefix="/languages", tags=["languages"])
 async def list_languages(
     current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ):
-    return await language_service.list_languages(db, current_user.id)
+    langs = await language_service.list_languages(db, current_user.id)
+    enrolled = await language_service.enrolled_language_ids(db, current_user.id)
+    out = []
+    for lang in langs:
+        o = LanguageOut.model_validate(lang)
+        o.enrolled = lang.id in enrolled
+        out.append(o)
+    return out
+
+
+@router.put("/enrollments", response_model=list[LanguageOut])
+async def set_enrollments(
+    body: EnrollmentUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Sync the user's studied-language set. Un-enroll keeps progress."""
+    langs = await language_service.sync_enrollments(
+        db, current_user.id, body.language_ids
+    )
+    out = []
+    for lang in langs:
+        o = LanguageOut.model_validate(lang)
+        o.enrolled = True
+        out.append(o)
+    return out
 
 
 @router.post("", response_model=LanguageOut, status_code=status.HTTP_201_CREATED)

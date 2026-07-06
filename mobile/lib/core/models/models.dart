@@ -8,6 +8,8 @@ class Language {
     required this.name,
     required this.ttsLang,
     this.accentColor,
+    this.nativeName,
+    this.enrolled = false,
   });
 
   final String id;
@@ -15,6 +17,10 @@ class Language {
   final String name;
   final String ttsLang;
   final String? accentColor;
+  final String? nativeName;
+
+  /// Người dùng hiện tại có đang học ngôn ngữ này không.
+  final bool enrolled;
 
   factory Language.fromJson(Map<String, dynamic> json) => Language(
         id: json['id'] as String,
@@ -22,6 +28,8 @@ class Language {
         name: json['name'] as String,
         ttsLang: json['ttsLang'] as String,
         accentColor: json['accentColor'] as String?,
+        nativeName: json['nativeName'] as String?,
+        enrolled: json['enrolled'] as bool? ?? false,
       );
 }
 

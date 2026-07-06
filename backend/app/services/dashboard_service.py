@@ -148,8 +148,12 @@ async def longest_streak_days(db: AsyncSession, user_id: uuid.UUID) -> int:
 async def languages(db: AsyncSession, user_id: uuid.UUID) -> list[LanguageSummary]:
     today = today_in_tz(await get_user_timezone(db, user_id))
     P = UserItemProgress
+    # Home shows ONLY languages the user chose to study (active enrollment).
     langs = list(await db.scalars(
         select(Language)
+        .join(LanguageSetting, (LanguageSetting.language_id == Language.id)
+              & (LanguageSetting.user_id == user_id)
+              & (LanguageSetting.is_active.is_(True)))
         .where(Language.is_active.is_(True))
         .order_by(Language.sort_order, Language.created_at)
     ))

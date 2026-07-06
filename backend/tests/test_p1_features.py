@@ -22,9 +22,17 @@ async def _make_item(client, headers, lang_id, text="你好") -> dict:
     return res.json()
 
 
+async def _enroll(client, headers, lang_id):
+    r = await client.put(
+        "/languages/enrollments", json={"languageIds": [lang_id]}, headers=headers
+    )
+    assert r.status_code == 200, r.text
+
+
 async def test_dashboard_language_due_tomorrow(client):
     headers = await register_and_login(client, "fc@example.com")
     lang = await create_language(client, headers)
+    await _enroll(client, headers, lang["id"])
     await _make_item(client, headers, lang["id"], text="新")
 
     res = await client.get("/dashboard/languages", headers=headers)
@@ -74,6 +82,7 @@ async def test_active_session_surfaces_on_dashboard(client):
     session so Home can resume instead of spawning a new one."""
     headers = await register_and_login(client, "resume@example.com")
     lang = await create_language(client, headers)
+    await _enroll(client, headers, lang["id"])
     for i in range(3):
         await _make_item(client, headers, lang["id"], text=f"字{i}")
 
@@ -144,3 +153,44 @@ async def test_non_admin_cannot_write_catalog(client, monkeypatch):
         f"/languages/{lang['id']}/study-sessions/daily", headers=headers_user
     )
     assert r.status_code == 201 and len(r.json()["items"]) == 1
+
+
+async def test_enrollment_flow(client):
+    """Register -> empty home -> choose languages -> unenroll keeps progress."""
+    admin = await register_and_login(client, "cat-admin@example.com")
+    lang = await create_language(client, admin, "zh", "Chinese")
+    await create_language(client, admin, "en", "English")
+    await _make_item(client, admin, lang["id"], text="你好")
+
+    user = await register_and_login(client, "newbie@example.com")
+    # Fresh account: catalog visible, nothing enrolled, Home empty.
+    langs = (await client.get("/languages", headers=user)).json()
+    assert len(langs) == 2 and all(l["enrolled"] is False for l in langs)
+    assert (await client.get("/dashboard/languages", headers=user)).json() == []
+
+    # Enroll Chinese only.
+    r = await client.put(
+        "/languages/enrollments", json={"languageIds": [lang["id"]]}, headers=user
+    )
+    assert r.status_code == 200 and r.json()[0]["enrolled"] is True
+    home = (await client.get("/dashboard/languages", headers=user)).json()
+    assert [l["code"] for l in home] == ["zh"]
+
+    # Study one card, then UN-enroll -> hidden but progress kept.
+    s = (await client.post(
+        f"/languages/{lang['id']}/study-sessions/daily", headers=user
+    )).json()
+    await client.post(
+        f"/study-sessions/{s['id']}/items/{s['items'][0]['id']}/review",
+        json={"result": "GOOD"}, headers=user,
+    )
+    await client.put("/languages/enrollments", json={"languageIds": []}, headers=user)
+    assert (await client.get("/dashboard/languages", headers=user)).json() == []
+    # Re-enroll: progress still there.
+    await client.put(
+        "/languages/enrollments", json={"languageIds": [lang["id"]]}, headers=user
+    )
+    item_id = s["items"][0]["item"]["id"]
+    assert (await client.get(
+        f"/study-items/{item_id}", headers=user
+    )).json()["timesReview"] == 1
