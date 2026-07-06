@@ -18,8 +18,16 @@ class Settings(BaseSettings):
 
     cors_origins: str = ""
 
+    # Comma-separated emails that become catalog ADMINS on registration.
+    # "*" = everyone (tests/dev only).
+    admin_emails: str = ""
+
     # Directory for generated TTS mp3 files (mounted volume in docker).
     tts_cache_dir: str = "uploads/tts"
+
+    @property
+    def admin_email_list(self) -> list[str]:
+        return [e.strip().lower() for e in self.admin_emails.split(",") if e.strip()]
 
     @property
     def cors_origin_list(self) -> list[str]:

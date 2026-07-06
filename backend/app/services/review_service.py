@@ -26,7 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ConflictError, NotFoundError
 from app.core.timeutil import today_in_tz
-from app.models import ReviewLog, StudyItem, StudySessionItem
+from app.models import ReviewLog, StudyItem, StudySessionItem, UserItemProgress
 from app.schemas.study_session import (
     NewProgress,
     ReviewResponse,
@@ -38,6 +38,20 @@ from app.services.study_session_service import get_session
 from app.services.user_service import get_user_timezone
 
 GRADE_ALIASES = {"PASS": "GOOD", "FAIL": "AGAIN"}
+
+
+async def _get_or_create_progress(db, user_id, item_id) -> UserItemProgress:
+    """LAZY progress row: created on first grade of a catalog item."""
+    prog = await db.scalar(
+        select(UserItemProgress).where(
+            UserItemProgress.user_id == user_id, UserItemProgress.item_id == item_id
+        )
+    )
+    if prog is None:
+        prog = UserItemProgress(user_id=user_id, item_id=item_id)
+        db.add(prog)
+        await db.flush()
+    return prog
 REMEMBER_GRADES = ("HARD", "GOOD", "EASY")
 
 EASE_MIN = 1.30
@@ -104,30 +118,29 @@ async def submit_review(
         raise NotFoundError("Session item")
 
     item = await db.scalar(
-        select(StudyItem).where(
-            StudyItem.id == session_item.study_item_id, StudyItem.user_id == user_id
-        )
+        select(StudyItem).where(StudyItem.id == session_item.study_item_id)
     )
     if item is None:
         raise NotFoundError("Study item")
+    prog = await _get_or_create_progress(db, user_id, item.id)
 
     # Idempotency (spec 12.4): already applied -> return stored state.
     if session_item.applied_at is not None:
-        return _build_response(session, session_item, item, already_applied=True)
+        return _build_response(session, session_item, item, prog, already_applied=True)
 
     settings = await get_settings(db, user_id, item.language_id)
     today = today_in_tz(await get_user_timezone(db, user_id))
 
     old = dict(
-        times_review=item.times_review,
-        passed=item.passed,
-        wrong_count=item.wrong_count,
-        hard_level=item.hard_level,
-        next_review_date=item.next_review_date,
-        ease=item.ease,
-        interval_days=item.interval_days,
-        last_result=item.last_result,
-        last_date_review=item.last_date_review,
+        times_review=prog.times_review,
+        passed=prog.passed,
+        wrong_count=prog.wrong_count,
+        hard_level=prog.hard_level,
+        next_review_date=prog.next_review_date,
+        ease=prog.ease,
+        interval_days=prog.interval_days,
+        last_result=prog.last_result,
+        last_date_review=prog.last_date_review,
     )
 
     if item.item_type == "SENTENCE":
@@ -138,31 +151,31 @@ async def submit_review(
         intervals = settings.review_intervals
 
     if grade == "AGAIN":
-        item.times_review = 0 if settings.reset_on_fail else item.times_review
-        item.passed = False
-        item.wrong_count = item.wrong_count + 1
-        item.hard_level = compute_hard_level(item.wrong_count)
-        item.ease = Decimal(str(apply_ease(float(item.ease), grade)))
-        item.interval_days = 1
-        item.next_review_date = today + timedelta(days=1)
-        item.last_result = grade
-        item.last_date_review = today
+        prog.times_review = 0 if settings.reset_on_fail else prog.times_review
+        prog.passed = False
+        prog.wrong_count = prog.wrong_count + 1
+        prog.hard_level = compute_hard_level(prog.wrong_count)
+        prog.ease = Decimal(str(apply_ease(float(prog.ease), grade)))
+        prog.interval_days = 1
+        prog.next_review_date = today + timedelta(days=1)
+        prog.last_result = grade
+        prog.last_date_review = today
     elif grade in REMEMBER_GRADES:
-        item.times_review = item.times_review + 1
-        item.passed = item.times_review >= times_limit
-        item.hard_level = compute_hard_level(item.wrong_count)
-        new_ease = apply_ease(float(item.ease), grade)
-        item.ease = Decimal(str(new_ease))
-        if item.passed:
-            item.interval_days = 0
-            item.next_review_date = None  # retired (spec 8.1)
+        prog.times_review = prog.times_review + 1
+        prog.passed = prog.times_review >= times_limit
+        prog.hard_level = compute_hard_level(prog.wrong_count)
+        new_ease = apply_ease(float(prog.ease), grade)
+        prog.ease = Decimal(str(new_ease))
+        if prog.passed:
+            prog.interval_days = 0
+            prog.next_review_date = None  # retired (spec 8.1)
         else:
-            item.interval_days = compute_interval(
-                grade, old["interval_days"], new_ease, item.times_review, intervals
+            prog.interval_days = compute_interval(
+                grade, old["interval_days"], new_ease, prog.times_review, intervals
             )
-            item.next_review_date = today + timedelta(days=item.interval_days)
-        item.last_result = grade
-        item.last_date_review = today
+            prog.next_review_date = today + timedelta(days=prog.interval_days)
+        prog.last_result = grade
+        prog.last_date_review = today
     # SKIP: no progress changes (spec 8.1)
 
     session_item.result = grade
@@ -183,19 +196,19 @@ async def submit_review(
         study_item_id=item.id,
         result=grade,
         old_times_review=old["times_review"],
-        new_times_review=item.times_review,
+        new_times_review=prog.times_review,
         old_passed=old["passed"],
-        new_passed=item.passed,
+        new_passed=prog.passed,
         old_wrong_count=old["wrong_count"],
-        new_wrong_count=item.wrong_count,
+        new_wrong_count=prog.wrong_count,
         old_hard_level=old["hard_level"],
-        new_hard_level=item.hard_level,
+        new_hard_level=prog.hard_level,
         old_next_review_date=old["next_review_date"],
-        new_next_review_date=item.next_review_date,
+        new_next_review_date=prog.next_review_date,
         old_ease=old["ease"],
-        new_ease=item.ease,
+        new_ease=prog.ease,
         old_interval_days=old["interval_days"],
-        new_interval_days=item.interval_days,
+        new_interval_days=prog.interval_days,
         old_last_result=old["last_result"],
         old_last_date_review=old["last_date_review"],
         self_note=self_note,
@@ -205,8 +218,8 @@ async def submit_review(
     # Single transaction (spec 12.3) — any failure above rolls everything back.
     await db.commit()
     await db.refresh(session)
-    await db.refresh(item)
-    return _build_response(session, session_item, item, already_applied=False)
+    await db.refresh(prog)
+    return _build_response(session, session_item, item, prog, already_applied=False)
 
 
 async def undo_review(
@@ -244,12 +257,17 @@ async def undo_review(
         raise ConflictError("Only the most recently answered card can be undone")
 
     item = await db.scalar(
-        select(StudyItem).where(
-            StudyItem.id == session_item.study_item_id, StudyItem.user_id == user_id
-        )
+        select(StudyItem).where(StudyItem.id == session_item.study_item_id)
     )
     if item is None:
         raise NotFoundError("Study item")
+    prog = await db.scalar(
+        select(UserItemProgress).where(
+            UserItemProgress.user_id == user_id, UserItemProgress.item_id == item.id
+        )
+    )
+    if prog is None:
+        raise ConflictError("No progress to undo for this card")
 
     log = await db.scalar(
         select(ReviewLog)
@@ -265,17 +283,17 @@ async def undo_review(
 
     grade = session_item.result
 
-    # Restore item from the snapshot
-    item.times_review = log.old_times_review or 0
-    item.passed = bool(log.old_passed)
-    item.wrong_count = log.old_wrong_count or 0
-    item.hard_level = log.old_hard_level or "Normal"
-    item.next_review_date = log.old_next_review_date
+    # Restore progress from the snapshot
+    prog.times_review = log.old_times_review or 0
+    prog.passed = bool(log.old_passed)
+    prog.wrong_count = log.old_wrong_count or 0
+    prog.hard_level = log.old_hard_level or "Normal"
+    prog.next_review_date = log.old_next_review_date
     if log.old_ease is not None:
-        item.ease = log.old_ease
-    item.interval_days = log.old_interval_days or 0
-    item.last_result = log.old_last_result
-    item.last_date_review = log.old_last_date_review
+        prog.ease = log.old_ease
+    prog.interval_days = log.old_interval_days or 0
+    prog.last_result = log.old_last_result
+    prog.last_date_review = log.old_last_date_review
 
     # Roll back session counters
     session.completed_items = max(0, session.completed_items - 1)
@@ -292,25 +310,25 @@ async def undo_review(
 
     await db.commit()
     await db.refresh(session)
-    await db.refresh(item)
+    await db.refresh(prog)
     return UndoResponse(
         session_item_id=session_item.id,
         study_item_id=item.id,
         undone_result=grade,
-        restored=_progress_of(item),
+        restored=_progress_of(prog),
         session_progress=_session_progress_of(session),
     )
 
 
-def _progress_of(item) -> NewProgress:
+def _progress_of(prog) -> NewProgress:
     return NewProgress(
-        times_review=item.times_review,
-        passed=item.passed,
-        wrong_count=item.wrong_count,
-        hard_level=item.hard_level,
-        next_review_date=item.next_review_date,
-        ease=item.ease,
-        interval_days=item.interval_days,
+        times_review=prog.times_review,
+        passed=prog.passed,
+        wrong_count=prog.wrong_count,
+        hard_level=prog.hard_level,
+        next_review_date=prog.next_review_date,
+        ease=prog.ease,
+        interval_days=prog.interval_days,
     )
 
 
@@ -324,12 +342,12 @@ def _session_progress_of(session) -> SessionProgress:
     )
 
 
-def _build_response(session, session_item, item, *, already_applied: bool) -> ReviewResponse:
+def _build_response(session, session_item, item, prog, *, already_applied: bool) -> ReviewResponse:
     return ReviewResponse(
         session_item_id=session_item.id,
         study_item_id=item.id,
         result=session_item.result,
         already_applied=already_applied,
-        new_progress=_progress_of(item),
+        new_progress=_progress_of(prog),
         session_progress=_session_progress_of(session),
     )

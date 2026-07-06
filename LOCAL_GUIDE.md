@@ -27,10 +27,10 @@ Test suite chạy trên SQLite in-memory:
 
 ```powershell
 pytest
-# Kỳ vọng: 37 passed
+# Kỳ vọng: 38 passed
 ```
 
-Đây là bước kiểm tra nhanh nhất — nếu 37/37 pass thì logic auth, study engine, isolation đều đúng.
+Đây là bước kiểm tra nhanh nhất — nếu 38/38 pass thì logic auth, study engine, isolation đều đúng.
 
 ### 1.4 Chạy PostgreSQL local
 
@@ -53,6 +53,7 @@ APP_ENV=development
 DEBUG=true
 DATABASE_URL=postgresql+asyncpg://vocab:devpass@localhost:5432/vocab_app
 JWT_SECRET=<chạy lệnh dưới để sinh>
+ADMIN_EMAILS=thanhphongnguyen3005@gmail.com   # tài khoản seed cần quyền admin để import kho từ
 ```
 
 Sinh JWT secret:

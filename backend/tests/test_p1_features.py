@@ -109,3 +109,38 @@ async def test_active_session_surfaces_on_dashboard(client):
     assert res.status_code == 200
     res = await client.get("/dashboard/languages", headers=headers)
     assert res.json()[0]["activeSessionType"] is None
+
+
+async def test_non_admin_cannot_write_catalog(client, monkeypatch):
+    """Catalog writes are admin-only; regular users get 403."""
+    from app.core.config import get_settings as cfg
+
+    headers_admin = await register_and_login(client, "boss@example.com")
+    lang = await create_language(client, headers_admin)
+    item = await _make_item(client, headers_admin, lang["id"])
+
+    monkeypatch.setattr(cfg(), "admin_emails", "boss@example.com")
+    headers_user = await register_and_login(client, "pleb@example.com")
+
+    r = await client.post(
+        "/study-items",
+        json={"languageId": lang["id"], "itemType": "VOCABULARY", "text": "x"},
+        headers=headers_user,
+    )
+    assert r.status_code == 403
+    assert (await client.patch(
+        f"/study-items/{item['id']}", json={"text": "y"}, headers=headers_user
+    )).status_code == 403
+    assert (await client.delete(
+        f"/study-items/{item['id']}", headers=headers_user
+    )).status_code == 403
+    assert (await client.post(
+        "/languages", json={"code": "fr", "name": "French", "ttsLang": "fr-FR"},
+        headers=headers_user,
+    )).status_code == 403
+    # But the user READS the catalog + studies it normally.
+    assert (await client.get("/study-items", headers=headers_user)).json()["total"] == 1
+    r = await client.post(
+        f"/languages/{lang['id']}/study-sessions/daily", headers=headers_user
+    )
+    assert r.status_code == 201 and len(r.json()["items"]) == 1

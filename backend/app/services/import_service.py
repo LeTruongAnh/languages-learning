@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import ImportBatch, Language, StudyItem
+from app.models import ImportBatch, Language, StudyItem, UserItemProgress
 
 MAX_FILE_BYTES = 5 * 1024 * 1024  # PLAN.md §1.2#10
 CSV_COLUMNS = [
@@ -33,7 +33,7 @@ async def import_csv(
 
     languages = {
         lang.code: lang.id
-        for lang in await db.scalars(select(Language).where(Language.user_id == user_id))
+        for lang in await db.scalars(select(Language))
     }
 
     errors: list[str] = []
@@ -71,7 +71,6 @@ async def import_csv(
             continue
 
         db.add(StudyItem(
-            user_id=user_id,
             language_id=languages[code],
             item_type=item_type,
             text=item_text,
@@ -104,7 +103,7 @@ async def export_csv(db: AsyncSession, user_id: uuid.UUID) -> str:
     rows = await db.execute(
         select(StudyItem, Language.code)
         .join(Language, StudyItem.language_id == Language.id)
-        .where(StudyItem.user_id == user_id, StudyItem.is_archived.is_(False))
+        .where(StudyItem.is_archived.is_(False))
         .order_by(Language.code, StudyItem.created_at)
     )
     output = io.StringIO()
@@ -128,15 +127,16 @@ async def export_backup(db: AsyncSession, user_id: uuid.UUID) -> str:
             "ttsLang": lang.tts_lang, "accentColor": lang.accent_color,
             "isActive": lang.is_active,
         }
-        for lang in await db.scalars(select(Language).where(Language.user_id == user_id))
+        for lang in await db.scalars(select(Language))
     ]
     items = []
+    P = UserItemProgress
     rows = await db.execute(
-        select(StudyItem, Language.code)
+        select(StudyItem, Language.code, P)
         .join(Language, StudyItem.language_id == Language.id)
-        .where(StudyItem.user_id == user_id)
+        .join(P, (P.item_id == StudyItem.id) & (P.user_id == user_id), isouter=True)
     )
-    for item, code in rows.all():
+    for item, code, prog in rows.all():
         items.append({
             "language": code,
             "itemType": item.item_type,
@@ -150,12 +150,12 @@ async def export_backup(db: AsyncSession, user_id: uuid.UUID) -> str:
             "difficulty": item.difficulty,
             "frequencyLevel": item.frequency_level,
             "notes": item.notes,
-            "timesReview": item.times_review,
-            "passed": item.passed,
-            "wrongCount": item.wrong_count,
-            "hardLevel": item.hard_level,
-            "lastDateReview": item.last_date_review.isoformat() if item.last_date_review else None,
-            "nextReviewDate": item.next_review_date.isoformat() if item.next_review_date else None,
+            "timesReview": prog.times_review if prog else 0,
+            "passed": prog.passed if prog else False,
+            "wrongCount": prog.wrong_count if prog else 0,
+            "hardLevel": prog.hard_level if prog else "Normal",
+            "lastDateReview": prog.last_date_review.isoformat() if prog and prog.last_date_review else None,
+            "nextReviewDate": prog.next_review_date.isoformat() if prog and prog.next_review_date else None,
             "isArchived": item.is_archived,
         })
     return json.dumps(

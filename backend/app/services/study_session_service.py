@@ -1,20 +1,42 @@
-"""Study session engine (spec §9): candidate selection, ratio split,
-bucket ordering, daily/extra/hard-items sessions."""
+"""Study session engine (spec §9) on the CATALOG + PROGRESS split:
+catalog items are shared; per-user SRS state is LEFT JOINed from
+user_item_progress. Missing progress row == NEW card (lazy creation)."""
 
 import uuid
 from datetime import date
 
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import NotFoundError
 from app.core.timeutil import today_in_tz
-from app.models import Language, LanguageSetting, StudyItem, StudySession, StudySessionItem
+from app.models import (
+    Language,
+    LanguageSetting,
+    StudyItem,
+    StudySession,
+    StudySessionItem,
+    UserItemProgress,
+)
 from app.services.language_service import get_language, get_settings
 from app.services.user_service import get_user_timezone
 
 VOCAB = "VOCABULARY"
 SENTENCE = "SENTENCE"
+
+P = UserItemProgress  # alias for brevity in join-heavy queries
+
+
+def _progress_on(user_id: uuid.UUID):
+    return and_(P.item_id == StudyItem.id, P.user_id == user_id)
+
+
+def _fresh_clause():
+    """NEW card: never graded (no progress row, or zeroed by undo)."""
+    return or_(
+        P.id.is_(None),
+        and_(P.times_review == 0, P.passed.is_(False), P.last_date_review.is_(None)),
+    )
 
 
 def _apply_list_filter(query, column, values: list[str]):
@@ -24,11 +46,14 @@ def _apply_list_filter(query, column, values: list[str]):
 
 
 def _base_candidates(user_id, language_id, item_type, settings: LanguageSetting):
-    q = select(StudyItem).where(
-        StudyItem.user_id == user_id,
-        StudyItem.language_id == language_id,
-        StudyItem.item_type == item_type,
-        StudyItem.is_archived.is_(False),
+    q = (
+        select(StudyItem)
+        .join(P, _progress_on(user_id), isouter=True)
+        .where(
+            StudyItem.language_id == language_id,
+            StudyItem.item_type == item_type,
+            StudyItem.is_archived.is_(False),
+        )
     )
     difficulty = (
         settings.sentence_difficulty_filter if item_type == SENTENCE
@@ -58,34 +83,32 @@ async def _pick_bucket(
     q = _base_candidates(user_id, language_id, item_type, settings)
 
     if kind == "NEW":
-        q = q.where(
-            StudyItem.times_review == 0,
-            StudyItem.passed.is_(False),
-            StudyItem.last_date_review.is_(None),
-        )
+        q = q.where(_fresh_clause())
     else:  # REVIEW (spec §9.3) + optional re-review of passed items
-        due_not_passed = (StudyItem.passed.is_(False)) & (StudyItem.next_review_date <= today)
+        due_not_passed = (P.passed.is_(False)) & (P.next_review_date <= today)
         if settings.include_passed_items:
             from datetime import timedelta
 
             cutoff = today - timedelta(days=settings.passed_review_after_days)
             q = q.where(or_(
                 due_not_passed,
-                (StudyItem.passed.is_(True)) & (StudyItem.last_date_review <= cutoff),
+                (P.passed.is_(True)) & (P.last_date_review <= cutoff),
             ))
         else:
             q = q.where(due_not_passed)
 
     if settings.avoid_same_day_repeat:
         q = q.where(or_(
-            StudyItem.last_date_review.is_(None), StudyItem.last_date_review != today
+            P.id.is_(None), P.last_date_review.is_(None), P.last_date_review != today
         ))
     if exclude_ids:
         q = q.where(StudyItem.id.not_in(exclude_ids))
 
     if settings.sort_mode == "priority":
         # Hardest first: most wrong answers, then most overdue.
-        q = q.order_by(StudyItem.wrong_count.desc(), StudyItem.next_review_date.asc())
+        q = q.order_by(
+            func.coalesce(P.wrong_count, 0).desc(), P.next_review_date.asc()
+        )
     elif settings.sort_mode == "oldest_first":
         q = q.order_by(StudyItem.created_at)
     else:  # random (default)
@@ -128,8 +151,7 @@ async def _pick_items(
 
 
 def _arrange(vocab_review, vocab_new, sent_review, sent_new) -> list[tuple[StudyItem, str]]:
-    """VOCAB_FIRST_WITH_REVIEW_PRIORITY (spec §9.5). Other orderings can be
-    added later; default is used for all sort modes in MVP."""
+    """VOCAB_FIRST_WITH_REVIEW_PRIORITY (spec §9.5)."""
     arranged: list[tuple[StudyItem, str]] = []
     arranged += [(i, "VOCAB_REVIEW") for i in vocab_review]
     arranged += [(i, "VOCAB_NEW") for i in vocab_new]
@@ -139,7 +161,6 @@ def _arrange(vocab_review, vocab_new, sent_review, sent_new) -> list[tuple[Study
 
 
 async def _expire_stale_sessions(db: AsyncSession, user_id: uuid.UUID, today: date) -> None:
-    """Sessions left ACTIVE from previous days become EXPIRED (PLAN.md §1.2#6)."""
     await db.execute(
         update(StudySession)
         .where(
@@ -205,7 +226,7 @@ async def _create_language_session(
 
 
 async def get_or_create_daily(db, user_id, language_id) -> StudySession:
-    await get_language(db, user_id, language_id)  # 404 if not owned
+    await get_language(db, user_id, language_id)  # 404 if unknown
     return await _create_language_session(db, user_id, language_id, "LANGUAGE_DAILY")
 
 
@@ -244,15 +265,16 @@ async def get_session(db, user_id, session_id) -> StudySession:
 
 
 async def load_session_items(
-    db: AsyncSession, session_id: uuid.UUID
-) -> list[tuple[StudySessionItem, StudyItem]]:
+    db: AsyncSession, session
+) -> list[tuple[StudySessionItem, StudyItem, UserItemProgress | None]]:
     rows = await db.execute(
-        select(StudySessionItem, StudyItem)
+        select(StudySessionItem, StudyItem, P)
         .join(StudyItem, StudySessionItem.study_item_id == StudyItem.id)
-        .where(StudySessionItem.session_id == session_id)
+        .join(P, _progress_on(session.user_id), isouter=True)
+        .where(StudySessionItem.session_id == session.id)
         .order_by(StudySessionItem.position)
     )
-    return [(si, item) for si, item in rows.all()]
+    return [(si, item, prog) for si, item, prog in rows.all()]
 
 
 async def complete_session(db, user_id, session_id) -> StudySession:
@@ -268,8 +290,7 @@ async def complete_session(db, user_id, session_id) -> StudySession:
 
 
 async def completion_stats(db, user_id, session) -> dict:
-    """Emotional-completion payload: streak, record, cards graduated in this
-    session. Cheap queries - runs once per completed session."""
+    """Emotional-completion payload: streak, record, cards graduated."""
     from app.services import dashboard_service
 
     today = today_in_tz(await get_user_timezone(db, user_id))
@@ -278,17 +299,18 @@ async def completion_stats(db, user_id, session) -> dict:
     graduated = await db.scalar(
         select(func.count())
         .select_from(StudySessionItem)
-        .join(StudyItem, StudySessionItem.study_item_id == StudyItem.id)
+        .join(P, and_(
+            P.item_id == StudySessionItem.study_item_id, P.user_id == user_id
+        ))
         .where(
             StudySessionItem.session_id == session.id,
             StudySessionItem.result.is_not(None),
-            StudyItem.passed.is_(True),
+            P.passed.is_(True),
         )
     ) or 0
     return {
         "streak_days": streak,
         "longest_streak": longest,
-        # Ties count as a record; >= 2 avoids a trivial day-one badge.
         "is_new_record": streak >= 2 and streak >= longest,
         "graduated_count": graduated,
     }
@@ -298,22 +320,24 @@ HARD_LEVELS = ("Hard", "Very Hard")
 HARD_SESSION_CAP = 50
 
 
+def _hard_query(user_id):
+    return (
+        select(StudyItem)
+        .join(P, _progress_on(user_id))
+        .where(
+            StudyItem.is_archived.is_(False),
+            P.passed.is_(False),
+            P.hard_level.in_(HARD_LEVELS),
+        )
+        .order_by(P.wrong_count.desc())
+    )
+
+
 async def create_hard_items_session(db: AsyncSession, user_id: uuid.UUID) -> StudySession:
     today = today_in_tz(await get_user_timezone(db, user_id))
     await _expire_stale_sessions(db, user_id, today)
 
-    rows = await db.scalars(
-        select(StudyItem)
-        .where(
-            StudyItem.user_id == user_id,
-            StudyItem.is_archived.is_(False),
-            StudyItem.passed.is_(False),
-            StudyItem.hard_level.in_(HARD_LEVELS),
-        )
-        .order_by(StudyItem.wrong_count.desc())
-        .limit(HARD_SESSION_CAP)
-    )
-    items = list(rows)
+    items = list(await db.scalars(_hard_query(user_id).limit(HARD_SESSION_CAP)))
     if not items:
         raise NotFoundError("Hard items")
 
@@ -339,17 +363,19 @@ async def create_hard_items_session(db: AsyncSession, user_id: uuid.UUID) -> Stu
     return session
 
 
-async def list_hard_items(db: AsyncSession, user_id: uuid.UUID) -> list[StudyItem]:
-    rows = await db.scalars(
-        select(StudyItem)
+async def list_hard_items(db: AsyncSession, user_id: uuid.UUID):
+    """Returns (item, progress) pairs — hardest first."""
+    rows = await db.execute(
+        select(StudyItem, P)
+        .join(P, _progress_on(user_id))
         .where(
-            StudyItem.user_id == user_id,
             StudyItem.is_archived.is_(False),
-            StudyItem.hard_level.in_(HARD_LEVELS),
+            P.passed.is_(False),
+            P.hard_level.in_(HARD_LEVELS),
         )
-        .order_by(StudyItem.wrong_count.desc())
+        .order_by(P.wrong_count.desc())
     )
-    return list(rows)
+    return [(item, prog) for item, prog in rows.all()]
 
 
 WEEKDAY_NAMES = [
@@ -358,9 +384,7 @@ WEEKDAY_NAMES = [
 
 
 async def create_weekly(db: AsyncSession, user_id: uuid.UUID, language_id: uuid.UUID) -> StudySession:
-    """LANGUAGE_WEEKLY: re-drill items studied in the last 7 days, hardest
-    first (wrong_count desc), capped at weekly_review_limit. Idempotent per
-    day like the daily session."""
+    """LANGUAGE_WEEKLY: re-drill items studied in the last 7 days."""
     from datetime import timedelta
 
     from app.models import ReviewLog
@@ -392,18 +416,18 @@ async def create_weekly(db: AsyncSession, user_id: uuid.UUID, language_id: uuid.
 
     q = (
         select(StudyItem)
+        .join(P, _progress_on(user_id), isouter=True)
         .where(
-            StudyItem.user_id == user_id,
             StudyItem.language_id == language_id,
             StudyItem.is_archived.is_(False),
             StudyItem.id.in_(reviewed_ids),
         )
-        .order_by(StudyItem.wrong_count.desc(), func.random())
+        .order_by(func.coalesce(P.wrong_count, 0).desc(), func.random())
         .limit(settings.weekly_review_limit)
     )
     if settings.avoid_same_day_repeat:
         q = q.where(or_(
-            StudyItem.last_date_review.is_(None), StudyItem.last_date_review != today
+            P.id.is_(None), P.last_date_review.is_(None), P.last_date_review != today
         ))
     items = list(await db.scalars(q))
     if not items:
@@ -432,13 +456,12 @@ async def create_weekly(db: AsyncSession, user_id: uuid.UUID, language_id: uuid.
 
 
 async def get_facets(db: AsyncSession, user_id: uuid.UUID, language_id: uuid.UUID) -> dict:
-    """Distinct filter values from the user's items — powers the filter UI."""
+    """Distinct filter values from the CATALOG — powers the filter UI."""
     await get_language(db, user_id, language_id)
 
     async def distinct(column):
         rows = await db.scalars(
             select(column).where(
-                StudyItem.user_id == user_id,
                 StudyItem.language_id == language_id,
                 StudyItem.is_archived.is_(False),
                 column.is_not(None),

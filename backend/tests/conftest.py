@@ -4,6 +4,9 @@ import os
 os.environ.setdefault("JWT_SECRET", "test-secret-not-for-production-0123456789abcdef")
 os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
 os.environ.setdefault("APP_ENV", "test")
+# Catalog writes are admin-only; in tests EVERY registered user is admin so
+# existing helpers (create_language, POST /study-items) keep working.
+os.environ.setdefault("ADMIN_EMAILS", "*")
 
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient

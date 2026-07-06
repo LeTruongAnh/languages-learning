@@ -8,6 +8,7 @@ from app.models.study_item import StudyItem
 from app.models.study_session import StudySession
 from app.models.study_session_item import StudySessionItem
 from app.models.user import User
+from app.models.user_item_progress import UserItemProgress
 from app.models.user_setting import UserSetting
 
 __all__ = [
@@ -21,5 +22,6 @@ __all__ = [
     "StudySessionItem",
     "ReviewLog",
     "UserSetting",
+    "UserItemProgress",
     "ImportBatch",
 ]

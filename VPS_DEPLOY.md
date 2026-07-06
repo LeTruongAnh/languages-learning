@@ -88,6 +88,7 @@ DEBUG=false                  # QUAN TRỌNG: tắt Swagger ở production
 DATABASE_URL=postgresql+asyncpg://vocab:<MẬT-KHẨU-MẠNH>@db:5432/vocab_app
 POSTGRES_PASSWORD=<MẬT-KHẨU-MẠNH>       # trùng với password trong DATABASE_URL
 JWT_SECRET=<sinh mới: python3 -c "import secrets; print(secrets.token_urlsafe(64))">
+ADMIN_EMAILS=thanhphongnguyen3005@gmail.com   # tài khoản quản kho từ vựng
 CORS_ORIGINS=                # để trống nếu chưa có web companion
 ```
 
@@ -214,6 +215,21 @@ Thêm dòng (backup 2h sáng mỗi ngày, giữ 14 bản):
 ```
 
 Khôi phục: `gunzip -c backup.sql.gz | docker compose exec -T db psql -U vocab vocab_app`
+
+### 1.7b NÂNG CẤP LÊN KIẾN TRÚC CATALOG (một lần, 07/2026)
+
+Bản refactor tách "kho từ dùng chung" khỏi "tiến độ per-user". Nâng cấp DB đang chạy KHÔNG mất dữ liệu (backup trước cho chắc: mục 1.7):
+
+```bash
+cd ~/languages-learning && git pull && cd backend
+# thêm dòng này vào .env:  ADMIN_EMAILS=thanhphongnguyen3005@gmail.com
+docker compose exec -T db psql -U vocab vocab_app < scripts/migrate_to_catalog.sql
+docker compose up -d --build api
+docker compose exec api alembic stamp head   # đồng bộ mốc migration
+curl http://127.0.0.1:8000/api/health
+```
+
+Sau nâng cấp: user mới đăng ký thấy ngay toàn bộ kho từ (tiến độ riêng từ 0), audio dùng chung không sinh lại, chỉ admin sửa được kho từ. KHÔNG chạy `alembic revision --autogenerate` trên VPS.
 
 ### 1.8 Cập nhật phiên bản mới
 

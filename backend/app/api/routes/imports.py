@@ -7,7 +7,7 @@ from fastapi.responses import PlainTextResponse, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_admin, get_current_user
 from app.core.database import get_db
 from app.core.errors import NotFoundError
 from app.core.rate_limit import limiter
@@ -36,7 +36,7 @@ class ImportBatchOut(CamelModel):
 async def import_study_items(
     request: Request,
     file: UploadFile,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     content = await file.read()

@@ -32,8 +32,14 @@ async def register(db: AsyncSession, email: str, password: str, display_name: st
     existing = await db.scalar(select(User).where(User.email == email.lower()))
     if existing:
         raise ConflictError("Email is already registered")
+    from app.core.config import get_settings as _cfg
+
+    admins = _cfg().admin_email_list
     user = User(
-        email=email.lower(), password_hash=hash_password(password), display_name=display_name
+        email=email.lower(),
+        password_hash=hash_password(password),
+        display_name=display_name,
+        is_admin=("*" in admins) or (email.lower() in admins),
     )
     db.add(user)
     await db.flush()

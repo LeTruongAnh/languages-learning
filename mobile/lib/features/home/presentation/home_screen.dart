@@ -88,13 +88,21 @@ class HomeScreen extends ConsumerWidget {
                             ),
                           ),
                           const SizedBox(width: 12),
-                          FilledButton(
-                            style: FilledButton.styleFrom(
-                              backgroundColor: AppColors.hardItems,
-                              minimumSize: const Size(72, 40),
+                          // SizedBox ép kích thước: theme đặt minimumSize
+                          // rộng vô hạn cho FilledButton (nút full-width),
+                          // trong Row sẽ nuốt hết chỗ nếu không ghim lại.
+                          SizedBox(
+                            width: 84,
+                            height: 44,
+                            child: FilledButton(
+                              style: FilledButton.styleFrom(
+                                backgroundColor: AppColors.hardItems,
+                                minimumSize: Size.zero,
+                                padding: EdgeInsets.zero,
+                              ),
+                              onPressed: () => context.push('/hard-items'),
+                              child: const Text('Xem'),
                             ),
-                            onPressed: () => context.push('/hard-items'),
-                            child: const Text('Xem'),
                           ),
                         ],
                       ),

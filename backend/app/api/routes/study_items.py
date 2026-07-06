@@ -1,15 +1,22 @@
-"""Study items CRUD (spec 10.4). All user-scoped."""
+"""Catalog items: read for everyone (merged with own progress),
+WRITE = ADMIN ONLY (shared content)."""
 
 import uuid
 
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_admin, get_current_user
 from app.core.database import get_db
 from app.core.timeutil import today_in_tz
 from app.models import User
-from app.schemas.study_item import StudyItemCreate, StudyItemOut, StudyItemPage, StudyItemUpdate
+from app.schemas.study_item import (
+    StudyItemCreate,
+    StudyItemOut,
+    StudyItemPage,
+    StudyItemUpdate,
+    merged_out,
+)
 from app.services import study_item_service
 from app.services.user_service import get_user_timezone
 
@@ -36,7 +43,7 @@ async def list_items(
     due_date = None
     if due_only:
         due_date = today_in_tz(await get_user_timezone(db, current_user.id))
-    items, total = await study_item_service.list_items(
+    pairs, total = await study_item_service.list_items(
         db,
         current_user.id,
         language_id=language_id,
@@ -54,7 +61,7 @@ async def list_items(
         page_size=page_size,
     )
     return StudyItemPage(
-        items=[StudyItemOut.model_validate(i) for i in items],
+        items=[merged_out(item, prog) for item, prog in pairs],
         total=total,
         page=page,
         page_size=page_size,
@@ -64,10 +71,11 @@ async def list_items(
 @router.post("", response_model=StudyItemOut, status_code=status.HTTP_201_CREATED)
 async def create_item(
     body: StudyItemCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    return await study_item_service.create_item(db, current_user.id, body)
+    item = await study_item_service.create_item(db, body)
+    return merged_out(item, None)
 
 
 @router.get("/{item_id}", response_model=StudyItemOut)
@@ -76,24 +84,28 @@ async def get_item(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    return await study_item_service.get_item(db, current_user.id, item_id)
+    item, prog = await study_item_service.get_item_with_progress(
+        db, current_user.id, item_id
+    )
+    return merged_out(item, prog)
 
 
 @router.patch("/{item_id}", response_model=StudyItemOut)
 async def update_item(
     item_id: uuid.UUID,
     body: StudyItemUpdate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    return await study_item_service.update_item(db, current_user.id, item_id, body)
+    item = await study_item_service.update_item(db, item_id, body)
+    return merged_out(item, None)
 
 
 @router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def archive_item(
     item_id: uuid.UUID,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    """Archive (soft delete) - keeps review history intact."""
-    await study_item_service.archive_item(db, current_user.id, item_id)
+    """Archive (soft delete) — hides the card from EVERY user's sessions."""
+    await study_item_service.archive_item(db, item_id)

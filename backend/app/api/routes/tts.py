@@ -34,7 +34,7 @@ async def get_audio(
     row = (await db.execute(
         select(StudyItem.text, Language.tts_lang)
         .join(Language, StudyItem.language_id == Language.id)
-        .where(StudyItem.id == item_id, StudyItem.user_id == current_user.id)
+        .where(StudyItem.id == item_id)
     )).first()
     if row is None:
         raise NotFoundError("Study item")

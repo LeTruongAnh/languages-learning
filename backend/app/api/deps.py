@@ -63,3 +63,12 @@ async def get_current_user_or_query_token(
     if user is None:
         raise TokenError("User not found or inactive")
     return user
+
+
+async def get_current_admin(current_user: User = Depends(get_current_user)) -> User:
+    """Catalog write operations are admin-only (shared content)."""
+    from fastapi import HTTPException
+
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin only")
+    return current_user

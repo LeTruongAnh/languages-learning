@@ -62,6 +62,39 @@ class StudyItemOut(CamelModel):
     is_archived: bool
 
 
+_PROGRESS_DEFAULTS = dict(
+    last_date_review=None, next_review_date=None, times_review=0,
+    passed=False, wrong_count=0, last_result=None, hard_level="Normal",
+)
+
+
+def merged_out(item, progress=None) -> "StudyItemOut":
+    """Catalog item + user progress merged into the SAME response shape the
+    app always used — mobile/web need no changes after the catalog split."""
+    data = dict(
+        id=item.id, language_id=item.language_id, item_type=item.item_type,
+        text=item.text, pronunciation=item.pronunciation,
+        vietnamese_meaning=item.vietnamese_meaning, example=item.example,
+        example_vietnamese=item.example_vietnamese, topic=item.topic,
+        situation=item.situation, difficulty=item.difficulty,
+        frequency_level=item.frequency_level, notes=item.notes,
+        is_archived=item.is_archived,
+    )
+    if progress is None:
+        data.update(_PROGRESS_DEFAULTS)
+    else:
+        data.update(
+            last_date_review=progress.last_date_review,
+            next_review_date=progress.next_review_date,
+            times_review=progress.times_review,
+            passed=progress.passed,
+            wrong_count=progress.wrong_count,
+            last_result=progress.last_result,
+            hard_level=progress.hard_level,
+        )
+    return StudyItemOut(**data)
+
+
 class StudyItemPage(CamelModel):
     items: list[StudyItemOut]
     total: int

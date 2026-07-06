@@ -19,7 +19,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ## Test
 
 ```bash
-pytest        # 37 tests — SQLite in-memory, không cần PostgreSQL
+pytest        # 38 tests — SQLite in-memory, không cần PostgreSQL
 ```
 
 ## Trạng thái: HOÀN CHỈNH (vượt acceptance criteria spec §19)
@@ -27,7 +27,9 @@ pytest        # 37 tests — SQLite in-memory, không cần PostgreSQL
 | Module | Trạng thái |
 |---|---|
 | Auth: register, login, refresh **rotation + reuse detection**, logout, me | ✅ |
-| Models 11 bảng + indexes (timestamptz, chạy cả SQLite test lẫn PostgreSQL) | ✅ |
+| Models 12 bảng + indexes (timestamptz, chạy cả SQLite test lẫn PostgreSQL) | ✅ |
+| **Kiến trúc catalog**: từ/câu + ngôn ngữ DÙNG CHUNG (admin quản); tiến độ per-user ở `user_item_progress` (lazy — user mới thấy toàn bộ kho ngay, DB không phình) | ✅ |
+| **Phân quyền**: ADMIN_EMAILS trong .env; user thường chỉ đọc catalog + học | ✅ |
 | Languages + Settings CRUD (validate ratios, soft delete, facets cho filter UI) | ✅ |
 | Study Items CRUD (filter, search, pagination, archive) | ✅ |
 | Study engine: daily/extra/**weekly** session, candidate rules §9.2, sort random/**priority**/oldest | ✅ |
@@ -43,7 +45,7 @@ pytest        # 37 tests — SQLite in-memory, không cần PostgreSQL
 | **Due forecast** (`dueTomorrow` trong /dashboard/languages) | ✅ |
 | **Completion stats**: streak + kỷ lục + thẻ tốt nghiệp (trả về khi complete) | ✅ |
 | **Resume phiên dở**: dashboard trả `activeSessionType`, app mở lại đúng phiên khi Tạm dừng | ✅ |
-| Test suite **37/37 pass** | ✅ |
+| Test suite **38/38 pass** | ✅ |
 
 ## API chính
 
@@ -75,7 +77,7 @@ GET|PATCH /api/user-settings
 
 ## Nguyên tắc bảo mật (đã áp dụng toàn bộ)
 
-- Mọi query lọc `user_id = current_user.id`; resource không thuộc user → **404**.
+- Catalog (items/languages/audio) đọc chung; TIẾN ĐỘ, phiên học, log, settings lọc `user_id` — của người khác → **404**. Sửa catalog cần is_admin → **403**.
 - Login sai trả thông báo chung — không lộ email tồn tại.
 - Refresh token: chỉ lưu SHA-256 hash, rotation, reuse → thu hồi cả family.
 - "Hôm nay" luôn tính theo `user_settings.timezone`.

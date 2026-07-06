@@ -11,3 +11,5 @@ class User(Base, UUIDPKMixin, TimestampMixin):
     password_hash: Mapped[str] = mapped_column(Text, nullable=False)
     display_name: Mapped[str | None] = mapped_column(String(120))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # Admins manage the shared catalog (items, languages, imports).
+    is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

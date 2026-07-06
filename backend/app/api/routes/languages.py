@@ -5,7 +5,7 @@ import uuid
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_admin, get_current_user
 from app.core.database import get_db
 from app.models import User
 from app.schemas.language import (
@@ -30,7 +30,7 @@ async def list_languages(
 @router.post("", response_model=LanguageOut, status_code=status.HTTP_201_CREATED)
 async def create_language(
     body: LanguageCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     return await language_service.create_language(db, current_user.id, body)
@@ -49,7 +49,7 @@ async def get_language(
 async def update_language(
     language_id: uuid.UUID,
     body: LanguageUpdate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     return await language_service.update_language(db, current_user.id, language_id, body)
@@ -58,7 +58,7 @@ async def update_language(
 @router.delete("/{language_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_language(
     language_id: uuid.UUID,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     await language_service.soft_delete_language(db, current_user.id, language_id)

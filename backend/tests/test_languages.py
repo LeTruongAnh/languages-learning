@@ -66,36 +66,40 @@ async def test_duplicate_language_code_conflict(client):
 
 
 async def test_cross_user_isolation(client):
-    """User B must never see or touch user A's data — returns 404, not 403."""
+    """CATALOG is shared (reads = 200 for everyone); what stays isolated is
+    per-user PROGRESS: B grading a card must not touch A's progress."""
     headers_a = await register_and_login(client, "isola@example.com")
     headers_b = await register_and_login(client, "isolb@example.com")
 
     lang_a = await create_language(client, headers_a, "zh", "Chinese")
 
-    # B cannot read A's language, settings, or delete it
-    assert (await client.get(f"/languages/{lang_a['id']}", headers=headers_b)).status_code == 404
-    assert (
-        await client.get(f"/languages/{lang_a['id']}/settings", headers=headers_b)
-    ).status_code == 404
-    assert (
-        await client.delete(f"/languages/{lang_a['id']}", headers=headers_b)
-    ).status_code == 404
-
-    # A's item invisible to B
+    # Shared catalog: B can read the language and its items.
+    assert (await client.get(f"/languages/{lang_a['id']}", headers=headers_b)).status_code == 200
     item = await client.post(
         "/study-items",
         json={"languageId": lang_a["id"], "itemType": "VOCABULARY", "text": "你好"},
         headers=headers_a,
     )
     item_id = item.json()["id"]
-    assert (await client.get(f"/study-items/{item_id}", headers=headers_b)).status_code == 404
-    body = (await client.get("/study-items", headers=headers_b)).json()
-    assert body["total"] == 0
+    assert (await client.get(f"/study-items/{item_id}", headers=headers_b)).status_code == 200
+    assert (await client.get("/study-items", headers=headers_b)).json()["total"] == 1
 
-    # B cannot create an item inside A's language
-    res = await client.post(
-        "/study-items",
-        json={"languageId": lang_a["id"], "itemType": "VOCABULARY", "text": "hack"},
+    # PROGRESS isolation: B studies the shared card...
+    res = await client.post(f"/languages/{lang_a['id']}/study-sessions/daily", headers=headers_b)
+    session = res.json()
+    await client.post(
+        f"/study-sessions/{session['id']}/items/{session['items'][0]['id']}/review",
+        json={"result": "GOOD"},
         headers=headers_b,
     )
-    assert res.status_code == 404
+    # ...B sees progress, A still sees a fresh card.
+    b_view = (await client.get(f"/study-items/{item_id}", headers=headers_b)).json()
+    a_view = (await client.get(f"/study-items/{item_id}", headers=headers_a)).json()
+    assert b_view["timesReview"] == 1
+    assert a_view["timesReview"] == 0
+
+    # B cannot touch A's SESSION (still 404 — sessions are per-user).
+    res_a = await client.post(f"/languages/{lang_a['id']}/study-sessions/daily", headers=headers_a)
+    assert (
+        await client.get(f"/study-sessions/{res_a.json()['id']}", headers=headers_b)
+    ).status_code == 404

@@ -7,7 +7,7 @@ from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.timeutil import today_in_tz
-from app.models import Language, LanguageSetting, ReviewLog, StudyItem, StudySession
+from app.models import Language, LanguageSetting, ReviewLog, StudyItem, StudySession, UserItemProgress
 from app.schemas.dashboard import HistoryDay, LanguageSummary, TodaySummary
 from app.services.study_session_service import HARD_LEVELS
 
@@ -38,20 +38,26 @@ async def summary(db: AsyncSession, user_id: uuid.UUID) -> TodaySummary:
     graded = pass_count + fail_count
     pass_rate = (pass_count / graded) if graded else 0.0
 
+    P = UserItemProgress
     due_today = await db.scalar(
-        select(func.count()).select_from(StudyItem).where(
-            StudyItem.user_id == user_id,
+        select(func.count()).select_from(P)
+        .join(StudyItem, StudyItem.id == P.item_id)
+        .where(
+            P.user_id == user_id,
             StudyItem.is_archived.is_(False),
-            StudyItem.passed.is_(False),
-            StudyItem.next_review_date <= today,
+            P.passed.is_(False),
+            P.next_review_date <= today,
         )
     ) or 0
 
     hard_count = await db.scalar(
-        select(func.count()).select_from(StudyItem).where(
-            StudyItem.user_id == user_id,
+        select(func.count()).select_from(P)
+        .join(StudyItem, StudyItem.id == P.item_id)
+        .where(
+            P.user_id == user_id,
             StudyItem.is_archived.is_(False),
-            StudyItem.hard_level.in_(HARD_LEVELS),
+            P.passed.is_(False),
+            P.hard_level.in_(HARD_LEVELS),
         )
     ) or 0
 
@@ -141,38 +147,42 @@ async def longest_streak_days(db: AsyncSession, user_id: uuid.UUID) -> int:
 
 async def languages(db: AsyncSession, user_id: uuid.UUID) -> list[LanguageSummary]:
     today = today_in_tz(await get_user_timezone(db, user_id))
+    P = UserItemProgress
     langs = list(await db.scalars(
         select(Language)
-        .where(Language.user_id == user_id, Language.is_active.is_(True))
+        .where(Language.is_active.is_(True))
         .order_by(Language.sort_order, Language.created_at)
     ))
 
+    def joined_base(lang_id):
+        return (
+            select(func.count())
+            .select_from(StudyItem)
+            .join(P, (P.item_id == StudyItem.id) & (P.user_id == user_id), isouter=True)
+            .where(
+                StudyItem.language_id == lang_id,
+                StudyItem.is_archived.is_(False),
+            )
+        )
+
+    fresh = (P.id.is_(None)) | (
+        (P.times_review == 0) & (P.passed.is_(False)) & (P.last_date_review.is_(None))
+    )
+    not_passed = (P.id.is_(None)) | (P.passed.is_(False))
+
     summaries: list[LanguageSummary] = []
     for lang in langs:
-        base = select(func.count()).select_from(StudyItem).where(
-            StudyItem.user_id == user_id,
-            StudyItem.language_id == lang.id,
-            StudyItem.is_archived.is_(False),
-        )
+        base = joined_base(lang.id)
         due = await db.scalar(base.where(
-            StudyItem.passed.is_(False), StudyItem.next_review_date <= today
+            P.passed.is_(False), P.next_review_date <= today
         )) or 0
-        new = await db.scalar(base.where(
-            StudyItem.times_review == 0,
-            StudyItem.passed.is_(False),
-            StudyItem.last_date_review.is_(None),
-        )) or 0
+        new = await db.scalar(base.where(fresh)) or 0
         vocab = await db.scalar(base.where(
-            StudyItem.item_type == "VOCABULARY",
-            StudyItem.passed.is_(False),
+            StudyItem.item_type == "VOCABULARY", not_passed
         )) or 0
         sentence = await db.scalar(base.where(
-            StudyItem.item_type == "SENTENCE",
-            StudyItem.passed.is_(False),
+            StudyItem.item_type == "SENTENCE", not_passed
         )) or 0
-        # Resume support: an unfinished session from today must surface on
-        # Home as "continue" — NOT spawn a fresh session (bug: pausing an
-        # EXTRA/WEEKLY session used to lose it forever).
         active_session_type = await db.scalar(
             select(StudySession.session_type)
             .where(
@@ -185,8 +195,8 @@ async def languages(db: AsyncSession, user_id: uuid.UUID) -> list[LanguageSummar
             .limit(1)
         )
         due_tomorrow = await db.scalar(base.where(
-            StudyItem.passed.is_(False),
-            StudyItem.next_review_date == today + timedelta(days=1),
+            P.passed.is_(False),
+            P.next_review_date == today + timedelta(days=1),
         )) or 0
         today_learned = await db.scalar(
             select(func.count()).select_from(ReviewLog).where(

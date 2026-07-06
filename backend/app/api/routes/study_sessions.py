@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user
 from app.core.database import get_db
 from app.models import User
-from app.schemas.study_item import StudyItemOut
+from app.schemas.study_item import merged_out
 from app.schemas.study_session import (
     ReviewRequest,
     ReviewResponse,
@@ -22,7 +22,7 @@ router = APIRouter(tags=["study-sessions"])
 
 
 async def _session_out(db, session, stats: dict | None = None) -> SessionOut:
-    pairs = await study_session_service.load_session_items(db, session.id)
+    triples = await study_session_service.load_session_items(db, session)
     return SessionOut(
         **(stats or {}),
         id=session.id,
@@ -41,9 +41,9 @@ async def _session_out(db, session, stats: dict | None = None) -> SessionOut:
                 position=si.position,
                 planned_bucket=si.planned_bucket,
                 result=si.result,
-                item=StudyItemOut.model_validate(item),
+                item=merged_out(item, prog),
             )
-            for si, item in pairs
+            for si, item, prog in triples
         ],
     )
 

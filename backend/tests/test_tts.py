@@ -73,14 +73,15 @@ async def test_tts_query_token_auth(client, mock_generator):
     assert res.status_code == 401
 
 
-async def test_tts_cross_user_isolation(client, mock_generator):
+async def test_tts_shared_across_users(client, mock_generator):
+    """Catalog audio is shared: any authenticated user can play any item."""
     headers_a = await register_and_login(client, "ttsa@example.com")
     headers_b = await register_and_login(client, "ttsb@example.com")
     lang = await create_language(client, headers_a, "zh")
     item_id = await make_item(client, headers_a, lang["id"])
 
     res = await client.get(f"/tts/{item_id}", headers=headers_b)
-    assert res.status_code == 404
+    assert res.status_code == 200
 
 
 def test_voice_mapping():

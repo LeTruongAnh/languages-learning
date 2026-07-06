@@ -127,10 +127,11 @@ async def test_facets_endpoint(client):
     assert facets["frequencyLevels"] == ["High"]
     assert facets["situations"] == []
 
-    # Isolation: other user cannot read facets of this language
+    # Shared catalog: another user reads the SAME facets
     headers_b = await register_and_login(client, "facetsb@example.com")
     res = await client.get(f"/languages/{lang['id']}/facets", headers=headers_b)
-    assert res.status_code == 404
+    assert res.status_code == 200
+    assert res.json() == facets
 
 
 async def test_difficulty_filter_applied_to_session(client):
