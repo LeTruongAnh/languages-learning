@@ -39,10 +39,14 @@ async def summary(db: AsyncSession, user_id: uuid.UUID) -> TodaySummary:
     pass_rate = (pass_count / graded) if graded else 0.0
 
     P = UserItemProgress
+    enrolled = select(LanguageSetting.language_id).where(
+        LanguageSetting.user_id == user_id, LanguageSetting.is_active.is_(True)
+    )
     due_today = await db.scalar(
         select(func.count()).select_from(P)
         .join(StudyItem, StudyItem.id == P.item_id)
         .where(
+            StudyItem.language_id.in_(enrolled),
             P.user_id == user_id,
             StudyItem.is_archived.is_(False),
             P.passed.is_(False),
@@ -54,6 +58,7 @@ async def summary(db: AsyncSession, user_id: uuid.UUID) -> TodaySummary:
         select(func.count()).select_from(P)
         .join(StudyItem, StudyItem.id == P.item_id)
         .where(
+            StudyItem.language_id.in_(enrolled),
             P.user_id == user_id,
             StudyItem.is_archived.is_(False),
             P.passed.is_(False),

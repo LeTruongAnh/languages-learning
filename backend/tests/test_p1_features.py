@@ -198,3 +198,30 @@ async def test_enrollment_flow(client):
     assert (await client.get(
         f"/study-items/{item_id}", headers=user
     )).json()["timesReview"] == 1
+
+
+async def test_unenroll_hides_action_counts_keeps_history(client):
+    """Action numbers follow enrollment; history (streak/learned) stays."""
+    headers = await register_and_login(client, "scope@example.com")
+    lang = await create_language(client, headers, "ja", "Japanese")
+    await _enroll(client, headers, lang["id"])
+    await _make_item(client, headers, lang["id"], text="猫")
+
+    sess = (await client.post(
+        f"/languages/{lang['id']}/study-sessions/daily", headers=headers
+    )).json()
+    await client.post(
+        f"/study-sessions/{sess['id']}/items/{sess['items'][0]['id']}/review",
+        json={"result": "GOOD"}, headers=headers,
+    )
+    summary = (await client.get("/dashboard/summary", headers=headers)).json()
+    assert summary["streakDays"] == 1 and summary["todayLearned"] == 1
+
+    # Un-enroll -> action lists/counts trống, LỊCH SỬ giữ nguyên.
+    await client.put("/languages/enrollments", json={"languageIds": []}, headers=headers)
+    assert (await client.get("/hard-items", headers=headers)).json() == []
+    summary = (await client.get("/dashboard/summary", headers=headers)).json()
+    assert summary["hardItemsCount"] == 0
+    assert summary["dueToday"] == 0
+    assert summary["streakDays"] == 1      # lịch sử không mất
+    assert summary["todayLearned"] == 1

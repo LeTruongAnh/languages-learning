@@ -324,6 +324,11 @@ def _hard_query(user_id):
     return (
         select(StudyItem)
         .join(P, _progress_on(user_id))
+        .join(LanguageSetting, and_(
+            LanguageSetting.language_id == StudyItem.language_id,
+            LanguageSetting.user_id == user_id,
+            LanguageSetting.is_active.is_(True),
+        ))
         .where(
             StudyItem.is_archived.is_(False),
             P.passed.is_(False),
@@ -368,6 +373,11 @@ async def list_hard_items(db: AsyncSession, user_id: uuid.UUID):
     rows = await db.execute(
         select(StudyItem, P)
         .join(P, _progress_on(user_id))
+        .join(LanguageSetting, and_(
+            LanguageSetting.language_id == StudyItem.language_id,
+            LanguageSetting.user_id == user_id,
+            LanguageSetting.is_active.is_(True),
+        ))
         .where(
             StudyItem.is_archived.is_(False),
             P.passed.is_(False),
