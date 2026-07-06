@@ -1,6 +1,8 @@
 # Deploy artifacts: cố ý commit tts.tgz + vocab.sql.gz để clone về VPS cho tiện
 # (repo PHẢI để Private — dump chứa dữ liệu + hash mật khẩu)
 *.sql
+# ...nhưng script migration trong repo thì PHẢI commit:
+!backend/scripts/*.sql
 
 # Python
 backend/.venv/
