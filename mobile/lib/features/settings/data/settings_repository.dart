@@ -50,8 +50,14 @@ final settingsRepositoryProvider =
 final userSettingsProvider = FutureProvider.autoDispose<UserSettings>(
     (ref) => ref.watch(settingsRepositoryProvider).load());
 
-final settingsLanguagesProvider = FutureProvider.autoDispose<List<Language>>(
-    (ref) => ref.watch(settingsRepositoryProvider).loadLanguages());
+/// Settings tab shows per-language cards for ENROLLED languages only —
+/// probing settings of un-enrolled ones both clutters the UI and (before the
+/// backend fix) silently enrolled them.
+final settingsLanguagesProvider =
+    FutureProvider.autoDispose<List<Language>>((ref) async {
+  final all = await ref.watch(settingsRepositoryProvider).loadLanguages();
+  return all.where((l) => l.enrolled).toList();
+});
 
 final languageSettingsProvider = FutureProvider.autoDispose
     .family<LanguageSetting, String>(

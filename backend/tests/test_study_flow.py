@@ -209,6 +209,9 @@ async def test_skip_does_not_change_progress(client):
 async def test_dashboard_and_history(client):
     headers = await register_and_login(client, "dash@example.com")
     lang = await create_language(client, headers, "zh")
+
+    await client.put("/languages/enrollments",
+                     json={"languageIds": [lang["id"]]}, headers=headers)
     await client.patch(
         f"/languages/{lang['id']}/settings",
         json={"dailyLimit": 2, "vocabularyRatio": "1.0", "sentenceRatio": "0.0"},

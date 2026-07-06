@@ -77,8 +77,14 @@ async def get_settings(
             LanguageSetting.user_id == user_id, LanguageSetting.language_id == language_id
         )
     )
-    if settings is None:  # AUTO-ENROLL: first touch creates defaults
-        settings = LanguageSetting(user_id=user_id, language_id=language_id)
+    if settings is None:
+        # Self-heal creates DEFAULTS but must NOT enroll: merely READING
+        # settings (e.g. the Settings tab probing a language) used to
+        # silently add the language to Home. Enrollment is explicit —
+        # only sync_enrollments() sets is_active=True.
+        settings = LanguageSetting(
+            user_id=user_id, language_id=language_id, is_active=False
+        )
         db.add(settings)
         await db.commit()
         await db.refresh(settings)

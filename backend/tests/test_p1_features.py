@@ -168,6 +168,10 @@ async def test_enrollment_flow(client):
     assert len(langs) == 2 and all(l["enrolled"] is False for l in langs)
     assert (await client.get("/dashboard/languages", headers=user)).json() == []
 
+    # REGRESSION: merely READING settings (Settings tab probes) must NOT enroll.
+    await client.get(f"/languages/{lang['id']}/settings", headers=user)
+    assert (await client.get("/dashboard/languages", headers=user)).json() == []
+
     # Enroll Chinese only.
     r = await client.put(
         "/languages/enrollments", json={"languageIds": [lang["id"]]}, headers=user

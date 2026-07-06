@@ -61,6 +61,9 @@ async def test_weekly_settings_validation(client):
     headers = await register_and_login(client, "wday@example.com")
     lang = await create_language(client, headers, "en")
 
+    await client.put("/languages/enrollments",
+                     json={"languageIds": [lang["id"]]}, headers=headers)
+
     settings = (await client.get(
         f"/languages/{lang['id']}/settings", headers=headers)).json()
     assert settings["weeklyReviewDay"] == "SUNDAY"
